@@ -1,0 +1,28 @@
+# Your own media and work: never uploaded
+source/*
+!source/.gitkeep
+output/*
+!output/.gitkeep
+projects/*
+!projects/.gitkeep
+.trash/
+
+# Downloaded / built tools (run setup.bat or setup.sh to get them)
+tools/ffmpeg/
+tools/whisper/*
+!tools/whisper/models/
+tools/whisper/models/*
+!tools/whisper/models/.gitkeep
+tools/fonts.conf
+
+# One-off script from the first prototype (hard-coded to one recording)
+make_shorts.sh
+
+# System and editor files
+node_modules/
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

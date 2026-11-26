@@ -1,0 +1,16 @@
+{
+  "name": "stream-to-shorts",
+  "version": "1.0.0",
+  "description": "Local app that turns long stream recordings into vertical 9:16 Shorts, TikToks and Reels with animated captions. Runs entirely on your PC.",
+  "private": true,
+  "license": "MIT",
+  "author": "ANIR13",
+  "main": "app/server.js",
+  "scripts": {
+    "start": "node app/server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["shorts", "tiktok", "reels", "stream", "twitch", "captions", "whisper", "ffmpeg", "video-editing", "offline"]
+}

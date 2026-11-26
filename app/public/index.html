@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stream to Shorts</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo">▶</span> Stream <span class="arrow">→</span> Shorts</div>
+    <div class="video-picker">
+      <select id="videoSelect" title="Video from the source folder" aria-label="Video"></select>
+      <button id="btnRefreshVideos" class="icon" title="Refresh list" aria-label="Refresh the video list">⟳</button>
+      <div class="menu-wrap">
+        <button id="btnVideoMenu" class="icon" title="Video options" aria-label="Video options" aria-haspopup="true" aria-expanded="false">⋯</button>
+        <div id="videoMenu" class="menu hidden" role="menu">
+          <button role="menuitem" data-vm="project"><b>Open this video's project folder</b><span class="muted">edits, analysis, preview, caption cache</span></button>
+          <button role="menuitem" data-vm="output"><b>Open its output folder</b><span class="muted">finished shorts and upload texts</span></button>
+          <hr>
+          <button role="menuitem" data-vm="reset"><b>Start this video over…</b><span class="muted">its clips and edits go to the Recycle Bin; finished shorts are kept</span></button>
+        </div>
+      </div>
+      <label class="btn ghost" title="Copy a video into the source folder. For big files it is faster to copy the file into the source folder yourself, then click ⟳. You can also drop a video on this window.">＋ Import video<input type="file" id="fileImport" accept="video/*" hidden></label>
+    </div>
+    <div class="top-actions">
+      <span id="saveState" class="save-state"></span>
+      <div class="undo-group">
+        <button id="btnUndo" class="icon undo-btn" disabled title="Nothing to undo" aria-label="Nothing to undo">↶</button>
+        <button id="btnRedo" class="icon undo-btn" disabled title="Nothing to redo" aria-label="Nothing to redo">↷</button>
+      </div>
+      <button id="batchState" class="batch-state hidden" title="Open tasks"></button>
+      <button id="btnAnalyze" class="btn">Analyze video</button>
+      <div class="menu-wrap">
+        <button id="btnRenderMenu" class="btn primary" aria-haspopup="true" aria-expanded="false">Render ▾</button>
+        <div id="renderMenu" class="menu hidden" role="menu">
+          <button role="menuitem" data-render="one"><b>This clip</b><span id="rmOne" class="muted"></span></button>
+          <button role="menuitem" data-render="selected"><b>Selected clips</b><span id="rmSel" class="muted"></span></button>
+          <button role="menuitem" data-render="pending"><b>New &amp; outdated only</b><span id="rmPending" class="muted"></span></button>
+          <button role="menuitem" data-render="all"><b>All clips</b><span id="rmAll" class="muted"></span></button>
+          <hr>
+          <button role="menuitem" data-render="draft"><b>⚡ Quick draft of this clip</b><span class="muted">10 s, low quality, ready in seconds</span></button>
+          <div id="rmTip" class="menu-tip hidden"></div>
+        </div>
+      </div>
+      <button id="btnJobs" class="btn ghost">Tasks <span id="jobsBadge" class="badge hidden">0</span></button>
+      <select id="langSelect" class="lang-select" title="Language" aria-label="Language"><option value="en">EN</option><option value="fr">FR</option></select>
+      <button id="btnHelp" class="icon help-btn" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
+    </div>
+  </header>
+  <div id="projectTabs" class="project-tabs hidden" role="tablist" aria-label="Videos you are working on"></div>
+  <div id="banners" class="banners" aria-live="polite"></div>
+
+  <div id="welcome" class="welcome hidden">
+    <div class="welcome-card">
+      <h1>Turn a long stream into Shorts</h1>
+      <ol>
+        <li><b>Pick a video</b>: drop it into the <code>source</code> folder or use <b>Import video</b>.</li>
+        <li><b>Analyze</b>: the app scans the audio and on-screen action and suggests the strongest moments.</li>
+        <li><b>Adjust</b>: trim each clip, set titles, place the facecam and gameplay, choose the caption style.</li>
+        <li><b>Render</b>: get vertical 9:16 MP4s with animated captions in the <code>output</code> folder.</li>
+      </ol>
+      <p class="muted small">Each video is its own project: its clips, captions, word fixes and exports never mix with another video's. Switch between videos at any time; each one keeps its progress and your place.</p>
+      <p class="muted small">Tip: for big recordings, copy the file straight into the <code>source</code> folder (instant), then click ⟳. You can also drop a video anywhere on this window.</p>
+      <div id="welcomeList" class="welcome-list"></div>
+    </div>
+  </div>
+
+  <main id="app" class="layout hidden">
+    <aside class="clips-panel">
+      <div class="panel-head">
+        <h2>Clips <span id="clipCount" class="muted"></span></h2>
+        <div class="row gap">
+          <button id="btnAddClip" class="btn small ghost" title="New clip starting at the playhead">＋ Add</button>
+          <button id="btnDetect" class="btn small ghost" title="Find the strongest moments automatically">✦ Auto-detect</button>
+        </div>
+      </div>
+      <div class="list-tools">
+        <input id="clipSearch" type="search" placeholder="Search clips (title or #number)…" aria-label="Search clips">
+        <div class="row gap">
+          <select id="clipFilter" aria-label="Show"><option value="all">All clips</option><option value="todo">Not rendered</option><option value="outdated">Outdated</option><option value="untitled">Untitled</option><option value="failed">Failed</option><option value="long">Over 60 s</option></select>
+          <select id="clipSort" aria-label="Sort"><option value="time">By time</option><option value="score">By strength</option><option value="num">By number</option></select>
+        </div>
+      </div>
+      <div class="row gap select-row">
+        <label class="check"><input type="checkbox" id="selectAll"> Select all</label>
+        <span id="selInfo" class="muted small"></span>
+      </div>
+      <div id="bulkRow" class="bulk-row hidden"><select id="bulkAction" aria-label="With ticked clips"></select></div>
+      <div id="clipList" class="clip-list"></div>
+    </aside>
+
+    <section class="main-panel">
+      <div class="player-box">
+        <video id="player" preload="auto" playsinline></video>
+        <div id="playerNote" class="player-note hidden"></div>
+      </div>
+      <div class="transport">
+        <button id="btnPlay" class="icon big" title="Play / pause (Space)" aria-label="Play or pause">▶</button>
+        <span id="timeLabel" class="mono">0:00.0 / 0:00</span>
+        <button id="btnPlayClip" class="btn small ghost" title="Play only the selected clip">Play clip</button>
+        <label class="check small"><input type="checkbox" id="loopClip"> Loop</label>
+        <label class="check small" title="Clip edges stick to pauses in speech, so clips don't start or end mid-word. Hold Alt while dragging to turn it off."><input type="checkbox" id="snapSpeech"> Snap to speech</label>
+        <button id="btnPlayerSize" class="btn small ghost" title="Make the video smaller or bigger (more room for the editor below)">Video size: M</button>
+        <span class="spacer"></span>
+        <span class="muted small">Drag empty space: new clip · drag a clip: move · scroll: zoom · <a href="#" id="tlHelp">all shortcuts (?)</a></span>
+      </div>
+      <div class="timeline-wrap"><canvas id="timeline"></canvas><div id="tlTip" class="tl-tip hidden"></div></div>
+
+      <nav class="tabs" role="tablist" aria-label="Clip settings">
+        <button data-tab="edit" class="active" role="tab" aria-selected="true" tabindex="0">Edit clip</button>
+        <button data-tab="layout" role="tab" aria-selected="false" tabindex="-1">Layout</button>
+        <button data-tab="style" role="tab" aria-selected="false" tabindex="-1">Style</button>
+        <button data-tab="captions" role="tab" aria-selected="false" tabindex="-1">Captions &amp; AI</button>
+        <button data-tab="exports" role="tab" aria-selected="false" tabindex="-1">Exports</button>
+      </nav>
+
+      <div class="tab-body">
+        <!-- EDIT -->
+        <div class="tab" data-tab="edit" role="tabpanel" aria-label="edit">
+          <div id="setupCard" class="setup-card hidden"></div>
+          <div id="editEmpty" class="empty">Select a clip on the left, or click <b>＋ Add</b>.</div>
+          <div id="editForm" class="hidden">
+            <div class="grid2">
+              <label>Title, line 1<input id="fTitle1" maxlength="40" placeholder="e.g. 11 SECONDS LEFT"></label>
+              <label>Title, line 2 (highlight colour)<input id="fTitle2" maxlength="40" placeholder="e.g. ON THE CLOCK..."></label>
+            </div>
+            <div id="titleFit" class="muted small fit-note hidden"></div>
+            <div class="row gap wrap title-ideas">
+              <button id="btnSuggest" class="btn small ghost" title="Title ideas from what was said in this clip">💡 Title ideas</button>
+              <div id="titleIdeas" class="ideas" translate="no"></div>
+            </div>
+            <div class="row gap wrap clip-own">
+              <label>Layout for this clip<select id="fLayoutMode">
+                <option value="">Project default</option><option value="split">Facecam + Gameplay</option>
+                <option value="gameplay">Gameplay only</option><option value="cam">Facecam only</option></select></label>
+              <label>Style for this clip<select id="fStylePreset"></select></label>
+            </div>
+            <div class="trim-row">
+              <div class="trim">
+                <span class="lbl">Start</span>
+                <button class="icon" data-nudge="start:-1">−1s</button>
+                <input id="fStart" class="mono">
+                <button class="icon" data-nudge="start:1">+1s</button>
+                <button class="btn small ghost" id="btnSetStart" title="Set start to the playhead">⇤ playhead</button>
+              </div>
+              <div class="trim">
+                <span class="lbl">End</span>
+                <button class="icon" data-nudge="end:-1">−1s</button>
+                <input id="fEnd" class="mono">
+                <button class="icon" data-nudge="end:1">+1s</button>
+                <button class="btn small ghost" id="btnSetEnd" title="Set end to the playhead">playhead ⇥</button>
+              </div>
+              <div id="durLabel" class="dur"></div>
+              <button id="btnTrim60" class="btn small ghost hidden" title="Shorts can be 60 s at most">Trim to 60 s</button>
+            </div>
+            <label class="desc-label">Upload description (optional)<textarea id="fDesc" rows="2" placeholder="Leave empty to use a quote from the captions"></textarea></label>
+            <div class="caption-box">
+              <div class="row between">
+                <label class="check"><input type="checkbox" id="fCaptionsOn"> Burn captions into this clip</label>
+                <div class="row gap">
+                  <button id="btnFixWord" class="btn small ghost" title="Correct a word in the captions of every clip of this video">Fix a word in all clips…</button>
+                  <button id="btnGenCaptions" class="btn small ghost">Generate captions</button>
+                </div>
+              </div>
+              <div id="captionStatus" class="muted small"></div>
+              <div id="chunkList" class="chunk-list"></div>
+              <div id="chunkHelp" class="muted small hidden">Enter splits a line at the cursor · Backspace at the start of a line joins it to the line above · ✕ removes a line</div>
+            </div>
+            <div class="row gap end">
+              <button id="btnDuplicate" class="btn ghost small">Duplicate</button>
+              <button id="btnDelete" class="btn danger small">Delete clip</button>
+              <span class="spacer"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- LAYOUT -->
+        <div class="tab hidden" data-tab="layout" role="tabpanel" aria-label="layout">
+          <div class="row gap wrap">
+            <div class="seg" id="layoutMode">
+              <button data-mode="split">Facecam + Gameplay</button>
+              <button data-mode="gameplay">Gameplay only</button>
+              <button data-mode="cam">Facecam only</button>
+            </div>
+            <label class="check"><input type="checkbox" id="camOnTop"> Facecam on top</label>
+            <span class="spacer"></span>
+            <button id="btnResetGame" class="btn small ghost">Gameplay = full frame</button>
+            <button id="btnLayoutOk" class="btn small primary">✓ Layout looks right</button>
+          </div>
+          <p class="muted small">Drag the boxes over your video to choose what goes into the short. Drag inside a box to move it, and drag a corner to resize it. With the keyboard: click the picture, press Enter to pick a box, use the arrow keys to move it and Shift + arrows to resize. The 9:16 preview on the right updates live.</p>
+          <div class="layout-editor"><canvas id="layoutCanvas"></canvas></div>
+          <div class="row gap small mono" id="rectInfo"></div>
+        </div>
+
+        <!-- STYLE -->
+        <div class="tab hidden" data-tab="style" role="tabpanel" aria-label="style">
+          <div class="row gap wrap preset-row">
+            <label class="inline">Preset <select id="presetSelect"></select></label>
+            <button id="btnApplyPreset" class="btn small ghost">Apply to project</button>
+            <button id="btnSavePreset" class="btn small ghost">Save current style as preset…</button>
+            <button id="btnDeletePreset" class="btn small danger">Delete preset</button>
+            <span id="presetInfo" class="muted small"></span>
+          </div>
+          <div class="style-grid">
+            <fieldset>
+              <legend>Title</legend>
+              <label>Font<select data-style="titleFont" class="font-select"></select></label>
+              <label>Size <output data-out="titleSize"></output><input type="range" min="50" max="120" data-style="titleSize"></label>
+              <div class="row gap"><label class="color">Line 1<input type="color" data-style="titleColor1"></label><label class="color">Line 2<input type="color" data-style="titleColor2"></label></div>
+              <label class="check"><input type="checkbox" data-style="titleSafe"> Keep the title below the apps' top bar</label>
+            </fieldset>
+            <fieldset>
+              <legend>Captions</legend>
+              <label class="check"><input type="checkbox" data-style="captions"> Captions on (all clips)</label>
+              <label>Font<select data-style="captionFont" class="font-select"></select></label>
+              <label>Size <output data-out="captionSize"></output><input type="range" min="50" max="130" data-style="captionSize"></label>
+              <div class="row gap"><label class="color">Text<input type="color" data-style="captionColor"></label><label class="color">Current word<input type="color" data-style="captionHighlight"></label></div>
+              <label>Animation<select data-style="highlightMode"><option value="word">Highlight word by word</option><option value="none">Static lines</option></select></label>
+              <label>Words per line <output data-out="wordsPerChunk"></output><input type="range" min="1" max="6" data-style="wordsPerChunk"></label>
+              <label class="check"><input type="checkbox" data-style="uppercase"> UPPERCASE</label>
+              <label class="check"><input type="checkbox" data-style="captionAuto"> Auto position (between facecam and gameplay)</label>
+              <label>Position <output data-out="captionPos"></output>%<input type="range" min="10" max="92" data-style="captionPos"></label>
+            </fieldset>
+            <fieldset>
+              <legend>Look &amp; export</legend>
+              <label>Background<select data-style="background"><option value="blur">Blurred video</option><option value="dark">Solid dark</option></select></label>
+              <label class="color">Accent (border, progress bar)<input type="color" data-style="accent"></label>
+              <label class="check"><input type="checkbox" data-style="camBorder"> Facecam border</label>
+              <label class="check"><input type="checkbox" data-style="camBoost"> Brighten facecam</label>
+              <label class="check"><input type="checkbox" data-style="progressBar"> Progress bar</label>
+              <label class="check"><input type="checkbox" data-style="loudnorm"> Normalize loudness (−14 LUFS)</label>
+              <label>Frame rate<select data-style="fps"><option value="30">30 fps</option><option value="60">60 fps</option></select></label>
+              <label>Quality <output data-out="crf"></output> <span class="muted small">(lower = better, bigger file)</span><input type="range" min="16" max="28" data-style="crf"></label>
+              <label>Encoder<select data-style="encoder"><option value="cpu">Best quality (processor)</option><option value="gpu">Faster (graphics card)</option></select></label>
+              <p id="gpuNote" class="muted small"></p>
+            </fieldset>
+          </div>
+        </div>
+
+        <!-- CAPTIONS & AI -->
+        <div class="tab hidden" data-tab="captions" role="tabpanel" aria-label="captions">
+          <div id="whisperMissing" class="notice hidden">Speech recognition isn't installed. Put <code>whisper-cli.exe</code> and a model (<code>ggml-*.bin</code>) in <code>tools/whisper</code>.</div>
+          <div class="style-grid">
+            <fieldset>
+              <legend>Speech recognition (runs on this PC)</legend>
+              <label>Model<select id="wModel"></select></label>
+              <label>Spoken language<select id="wLang">
+                <option value="auto">Detect automatically</option><option value="en">English</option><option value="fr">French</option>
+                <option value="ar">Arabic</option><option value="es">Spanish</option><option value="de">German</option><option value="it">Italian</option>
+                <option value="pt">Portuguese</option><option value="nl">Dutch</option><option value="tr">Turkish</option><option value="ru">Russian</option>
+              </select></label>
+              <label class="check"><input type="checkbox" id="wTranslate"> Translate captions to English</label>
+              <label>Words to expect <span class="muted small">(names and jargon, helps the AI spell them)</span>
+                <textarea id="wPrompt" rows="2" placeholder="e.g. chess, checkmate, mate in two, en passant, castling, blunder"></textarea></label>
+              <p class="muted small">Captions are generated automatically when a clip is rendered. You can also generate them first from <b>Edit clip</b> to fix any words. These words and the word fixes belong to this video only, so another video's topic never leaks in. Changing them only affects captions generated from now on. If the AI ever writes this list into the captions during a silence, it is removed automatically.</p>
+            </fieldset>
+            <fieldset id="fixesBox">
+              <legend>Word fixes (this video)</legend>
+              <p class="muted small">Words the AI keeps getting wrong. Fixes are applied to every new caption automatically. Phrases work too, e.g. <i>made in two</i> → <i>mate in two</i>.</p>
+              <div id="fixList" class="fix-list" translate="no"></div>
+              <div class="row gap fix-add">
+                <input id="fixFrom" placeholder="Heard as… (made)">
+                <span class="muted">→</span>
+                <input id="fixTo" placeholder="Should be… (mate)">
+                <button id="btnAddFix" class="btn small ghost">Add</button>
+              </div>
+              <div class="row gap">
+                <button id="btnApplyFixes" class="btn small primary">Apply to all existing captions</button>
+                <span id="fixInfo" class="muted small"></span>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Whole-stream transcript</legend>
+              <p class="muted small">Optional. This transcribes the whole video once, so captions for every clip appear instantly and you can search what was said. It takes a while on long streams.</p>
+              <button id="btnTranscribeFull" class="btn ghost">Transcribe whole stream</button>
+              <input id="searchTranscript" placeholder="Search what was said…" class="hidden">
+              <div id="searchResults" class="search-results" translate="no"></div>
+            </fieldset>
+          </div>
+        </div>
+
+        <!-- EXPORTS -->
+        <div class="tab hidden" data-tab="exports" role="tabpanel" aria-label="exports">
+          <div class="row gap">
+            <button id="btnOpenOutput" class="btn ghost small">Open output folder</button>
+            <span id="exportsInfo" class="muted small"></span>
+          </div>
+          <div class="row gap wrap publish-row">
+            <label class="inline">Hashtags for uploads <input id="pubTags" placeholder="#shorts #gaming"></label>
+            <button id="btnWriteTxt" class="btn small ghost" title="Rewrite the .txt file next to each short">Update upload texts (.txt)</button>
+            <span class="muted small">A .txt file with the title, description and hashtags is saved next to each short.</span>
+          </div>
+          <div id="exportGrid" class="export-grid"></div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="preview-panel">
+      <div class="panel-head"><h2>9:16 preview</h2><span class="muted small">live</span></div>
+      <div class="phone"><canvas id="preview" width="540" height="960"></canvas></div>
+      <label class="check small"><input type="checkbox" id="safeZones"> Show what TikTok / Shorts / Reels cover</label>
+      <div id="safeWarn" class="safe-warn hidden" role="status"></div>
+      <button id="btnRenderPreview" class="btn primary wide">Render this clip</button>
+      <button id="btnDraft" class="btn ghost wide" title="Fast 10-second low-quality render from the playhead">⚡ Quick draft (10 s)</button>
+      <p class="muted small center">The preview is drawn from a low-resolution proxy. The rendered short uses the full-quality source.</p>
+    </aside>
+  </main>
+
+  <div id="jobsDrawer" class="drawer hidden" role="dialog" aria-label="Tasks">
+    <div class="panel-head"><h2>Tasks</h2><div class="row gap"><button id="btnClearJobs" class="btn small ghost">Clear finished</button><button id="btnCloseJobs" class="icon" title="Close" aria-label="Close tasks">✕</button></div></div>
+    <div id="jobSummary" class="job-summary hidden"></div>
+    <div class="row gap job-actions">
+      <button id="btnRetryCancelled" class="btn small primary hidden"></button>
+      <button id="btnRetryFailed" class="btn small ghost hidden"></button>
+      <span class="spacer"></span>
+      <button id="btnCancelAll" class="btn small danger hidden">Cancel all</button>
+    </div>
+    <div id="jobList" class="job-list"></div>
+  </div>
+
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Video player"><div class="modal-card"><button class="icon modal-close" id="modalClose" aria-label="Close video">✕</button><video id="modalVideo" controls playsinline></video><div id="modalName" class="muted small center" translate="no"></div></div></div>
+  <div id="help" class="modal hidden" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts"><div class="modal-card help-card">
+    <button class="icon modal-close" id="helpClose" aria-label="Close">✕</button>
+    <h2>Keyboard shortcuts</h2>
+    <table class="keys">
+      <tr><td><kbd>Space</kbd></td><td>Play / pause</td></tr>
+      <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>Seek 1 s (hold <kbd>Shift</kbd> for 5 s)</td></tr>
+      <tr><td><kbd>I</kbd> / <kbd>O</kbd></td><td>Set the clip start / end at the playhead</td></tr>
+      <tr><td><kbd>P</kbd></td><td>Play the selected clip</td></tr>
+      <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Select the previous / next clip</td></tr>
+      <tr><td><kbd>D</kbd></td><td>Quick draft of the selected clip</td></tr>
+      <tr><td><kbd>,</kbd> <kbd>.</kbd></td><td>Move the selected clip 1 s earlier / later (<kbd>Shift</kbd>: 5 s)</td></tr>
+      <tr><td><kbd>+</kbd> <kbd>−</kbd></td><td>Zoom the timeline in / out</td></tr>
+      <tr><td><kbd>Tab</kbd></td><td>Move between controls; <kbd>Enter</kbd> selects a focused clip</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Undo (clips, titles, captions, layout, style)</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>Y</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td><td>Redo</td></tr>
+      <tr><td><kbd>?</kbd></td><td>Show this help</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Close popups and menus</td></tr>
+    </table>
+    <h3>Timeline</h3>
+    <table class="keys">
+      <tr><td>Scroll</td><td>Zoom</td></tr>
+      <tr><td><kbd>Shift</kbd>+scroll · drag the time ruler</td><td>Pan</td></tr>
+      <tr><td>Drag empty space</td><td>Create a new clip</td></tr>
+      <tr><td>Drag a clip / its edges</td><td>Move it / trim it</td></tr>
+      <tr><td>Double-click</td><td>Show the whole video</td></tr>
+      <tr><td>Blue line under the waveform</td><td>Speech (from captions or the transcript)</td></tr>
+      <tr><td><kbd>Alt</kbd> while dragging an edge</td><td>Don't snap to speech pauses</td></tr>
+    </table>
+    <h3>Layout tab (click the picture first)</h3>
+    <table class="keys">
+      <tr><td><kbd>Enter</kbd></td><td>Switch between the facecam and gameplay boxes</td></tr>
+      <tr><td>Arrow keys</td><td>Move the box (<kbd>Alt</kbd>: fine steps)</td></tr>
+      <tr><td><kbd>Shift</kbd> + arrow keys</td><td>Resize the box</td></tr>
+    </table>
+    <h3>Caption lines</h3>
+    <table class="keys">
+      <tr><td><kbd>Enter</kbd></td><td>Split the line at the cursor</td></tr>
+      <tr><td><kbd>Backspace</kbd> at line start</td><td>Join with the line above</td></tr>
+    </table>
+  </div></div>
+  <div id="dropOverlay" class="drop-overlay hidden" aria-hidden="true"><div>Drop the video to add it to the source folder</div></div>
+  <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+
+  <script src="i18n.js"></script>
+  <script src="layout.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
