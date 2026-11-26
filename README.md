@@ -71,8 +71,7 @@ Bug reports, ideas and pull requests are welcome. Please open an issue first for
 
 If Stream → Shorts saves you time, you can support its development:
 
-<!-- Replace the link below with your Buy Me a Coffee page -->
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-support-FFDD00?logo=buymeacoffee&logoColor=black)](https://www.buymeacoffee.com/YOUR_USERNAME)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-support-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/mastersrecipes)
 
 ## Credits
 
