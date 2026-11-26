@@ -1,20 +1,47 @@
-# Stream → Shorts
+<h1 align="center">Stream → Shorts</h1>
 
-**Turn long stream recordings into vertical Shorts, TikToks and Reels, with animated captions. Free, open source and 100% local: no account, no upload, no cloud.**
+<p align="center">
+  <b>Turn long stream recordings into vertical Shorts, TikToks and Reels with animated captions.</b><br>
+  Free, open source and 100% local: no account, no upload, no cloud.
+</p>
 
-Stream → Shorts finds the strongest moments of a stream (loudness + on-screen action), lets you trim and title them in a simple web interface, and renders 9:16 videos with a facecam + gameplay layout, a title and word-by-word captions made by speech recognition on your own machine.
+<p align="center">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-yellow.svg"></a>
+  <img alt="Windows | Linux" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-blue.svg">
+  <img alt="Node.js 18+" src="https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg">
+  <img alt="100% local" src="https://img.shields.io/badge/privacy-100%25%20local-8a2be2.svg">
+  <a href="https://buymeacoffee.com/mastersrecipes"><img alt="Buy me a coffee" src="https://img.shields.io/badge/buy%20me%20a%20coffee-support-FFDD00?logo=buymeacoffee&logoColor=black"></a>
+</p>
+
+<p align="center">
+  <img src="docs/images/app-screenshot.jpg" alt="The Stream → Shorts editor: clip list, video player with a loudness timeline, clip settings and a live 9:16 preview with title and captions" width="100%">
+</p>
+
+Stream → Shorts finds the strongest moments of a stream (loudness + on-screen action), lets you trim and title them in a simple web interface, and renders 9:16 videos with a facecam + gameplay layout, a title and word-by-word captions made by speech recognition **on your own machine**.
 
 ## Features
 
+<table>
+<tr>
+<td width="62%" valign="top">
+
 - **Finds the best moments** automatically from loudness and scene changes; add or adjust clips on a timeline.
-- **Vertical 9:16 layouts:** facecam + gameplay, gameplay only, or facecam only, with a blurred background, title, progress bar and loudness normalisation.
-- **Animated captions** with word-by-word highlight, generated offline with [whisper.cpp](https://github.com/ggml-org/whisper.cpp). Fix words once for the whole video, give the AI the names and jargon it should expect, edit any line by hand.
+- **Vertical 9:16 layouts:** facecam + gameplay, gameplay only or facecam only, with a blurred background, title, progress bar and loudness normalisation.
+- **Animated captions** with word-by-word highlight, generated offline with [whisper.cpp](https://github.com/ggml-org/whisper.cpp). Fix words once for the whole video, tell the AI which names and jargon to expect, edit any line by hand.
 - **Never cut mid-word:** clip edges snap to pauses in speech.
 - **Safe zones:** see what TikTok / Shorts / Reels buttons cover, with one-click fixes.
 - **Quick 10-second drafts**, a render queue with progress and time left, resume after the app was closed, undo / redo.
 - **Upload texts:** title, description and hashtags saved next to every short.
 - **Several videos side by side**, each with its own project, plus style presets, title ideas, bulk actions and keyboard shortcuts.
 - **English and French** interface. Works on **Windows** and **Linux** (Kali, Debian, Ubuntu).
+
+</td>
+<td width="38%" valign="top" align="center">
+  <img src="docs/images/short-example.jpg" alt="A finished vertical short: two-line title at the top, facecam, a caption with the current word highlighted, gameplay below" width="260"><br>
+  <sub>A finished short (demo footage)</sub>
+</td>
+</tr>
+</table>
 
 ## Quick start
 
