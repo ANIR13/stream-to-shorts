@@ -1,0 +1,31 @@
+name: Feature request
+description: Suggest an idea or an improvement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to do?
+      description: Describe the problem or the goal, not only the solution. For example "I want to post the same short with different titles".
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How could it work?
+      description: Your idea for the solution, if you have one.
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Project rules
+      description: Stream → Shorts stays simple and private.
+      options:
+        - label: The idea works without an account, a cloud service or sending data over the internet
+          required: true
+  - type: dropdown
+    id: help
+    attributes:
+      label: Would you like to build it?
+      options:
+        - No, just suggesting
+        - Yes, I'd like to open a pull request

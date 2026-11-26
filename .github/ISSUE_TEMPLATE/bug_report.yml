@@ -1,0 +1,54 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for reporting! The more precise the steps, the faster it gets fixed.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+      placeholder: "I clicked Render ▾ → All clips, and short #3 failed with…"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a video
+        2. Analyze it
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: Error message
+      description: If a task failed, copy it from **Tasks → Technical details → Copy**. The text in the black window / terminal helps too.
+      render: text
+  - type: dropdown
+    id: os
+    attributes:
+      label: System
+      options:
+        - Windows 11
+        - Windows 10
+        - Kali Linux
+        - Debian / Ubuntu
+        - Other (say which below)
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: "Output of `node -v` and the first line of `ffmpeg -version` (shown when the app starts)."
+      placeholder: "node v20.18.1, ffmpeg version 9.0.2"
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      placeholder: "Edge 140, Firefox ESR 128…"

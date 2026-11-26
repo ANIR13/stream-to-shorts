@@ -65,7 +65,7 @@ There is no build step: edit the files and restart the app.
 
 ## Contributing
 
-Bug reports, ideas and pull requests are welcome. Please open an issue first for bigger changes. Keep the app dependency-free and fully local.
+Bug reports, ideas and pull requests are welcome. Please read **[CONTRIBUTING.md](CONTRIBUTING.md)** first: it explains how to run the app from source and the few project rules (no dependencies, fully local, Windows + Linux, English + French). For bigger changes, open an issue first.
 
 ## Support
 
