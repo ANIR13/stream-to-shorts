@@ -18,7 +18,16 @@ All notable changes to Stream → Shorts are listed here. The format follows [Ke
 - The server is split into layers (core logic, services, project repository, FFmpeg adapter). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). The rendered shorts are unchanged.
 - The README has screenshots, badges and a clearer layout.
 
+### Security
+- **The app only answers its own page:** other websites open in the browser can no longer send it commands or read its answers (cross-site requests and DNS rebinding are refused). Security headers and a strict Content Security Policy on every answer.
+- **Project files are validated** when loaded and saved: a crafted project can no longer make a render delete or overwrite a file outside the output folder, point to a video outside `source/`, or inject lines into the subtitle file.
+- **Imported videos:** strict file names, a size limit (64 GB, `S2S_MAX_UPLOAD_GB`), a free-space check, one import at a time, and no leftover files when an import is interrupted.
+- **Verified downloads:** the setup pins whisper.cpp (release b5907) and checks the SHA-256 of whisper.cpp, the speech models and ffmpeg; on Windows it installs the newest stable ffmpeg release instead of the development build. Linux builds whisper.cpp from a verified commit.
+- Links open without `cmd.exe`; closing the app stops the running ffmpeg or whisper; at most 300 waiting tasks.
+- See [SECURITY.md](SECURITY.md) for the protections and the risks of opening someone else's project file.
+
 ### Fixed
+- On Windows the app crashed at startup when setup had not been run yet.
 - The video was shifted 2 px to the right in the gameplay and split layouts (a thin strip of background showed on the left). Shorts rendered before keep the old position until rendered again.
 - Snap to speech could put a clip edge a few hundredths of a second into the next word after a short pause.
 - A missing FFmpeg was reported as "Check that the video is still in the source folder"; it now says to run the setup again.

@@ -15,6 +15,7 @@ const path = require('path');
 
 const { httpError, friendlyError } = require('./src/shared/errors');
 const { exists, readJSON, inside, slugify } = require('./src/shared/fsutil');
+const { VIDEO_EXT, safeFileName } = require('./src/shared/validate');
 const { openWith, createProcessRunner } = require('./src/infrastructure/process');
 const { createEnvironment } = require('./src/infrastructure/environment');
 const { createFfmpeg } = require('./src/infrastructure/ffmpeg');
@@ -29,21 +30,56 @@ const { createExportService } = require('./src/services/exportService');
 const { createPresetService } = require('./src/services/presetService');
 const { createJobQueue, isActive, publicJob } = require('./src/services/jobQueue');
 
+// The server only listens on the loopback address: other computers can't reach it. This is not
+// configurable on purpose (see SECURITY.md).
 const HOST = '127.0.0.1';
-const VIDEO_EXT = new Set(['.mkv', '.mp4', '.mov', '.webm', '.flv', '.avi', '.ts', '.m4v']);
+const GB = 1024 * 1024 * 1024;
+// Limits that keep a mistake (or a misbehaving page) from filling the disk or the task list.
+const DEFAULT_LIMITS = {
+  maxUploadBytes: (Number(process.env.S2S_MAX_UPLOAD_GB) || 64) * GB, // one imported video
+  minFreeBytes: 2 * GB,                                                // keep at least this free when importing
+  maxQueued: 300,                                                      // waiting + running tasks
+};
+
+// Headers on every response: no sniffing, no framing by other sites, no referrer, and files may only
+// be used by the app's own page (Cross-Origin-Resource-Policy).
+const SECURITY_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'no-referrer',
+  'Cross-Origin-Resource-Policy': 'same-origin',
+  'Cross-Origin-Opener-Policy': 'same-origin',
+};
+// The page loads only its own scripts and styles (inline style attributes are used for layout).
+const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+
+// Requests must come from the app's own page. Listening on 127.0.0.1 is not enough: any website open
+// in the browser can send requests to 127.0.0.1 (cross-site requests), and a hostile domain can
+// resolve to 127.0.0.1 to read the answers (DNS rebinding). Returns why a request is refused, or null.
+function foreignRequest(req, port) {
+  const host = String(req.headers.host || '').toLowerCase();
+  if (host !== `127.0.0.1:${port}` && host !== `localhost:${port}`) return 'unexpected Host header';
+  const site = req.headers['sec-fetch-site'];
+  if (site && site !== 'same-origin' && site !== 'none') return 'request from another site';
+  const origin = req.headers.origin;
+  if (origin && origin !== 'null' && origin !== `http://${host}`) return 'request from another origin';
+  if (origin === 'null' && req.method !== 'GET' && req.method !== 'HEAD') return 'request from an opaque origin';
+  return null;
+}
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png', '.svg': 'image/svg+xml', '.mp4': 'video/mp4', '.mkv': 'video/x-matroska', '.webm': 'video/webm', '.mov': 'video/quicktime' };
 
 // ---------- HTTP helpers ----------
 function sendJSON(res, code, obj) {
   const body = JSON.stringify(obj);
-  res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+  res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   res.end(body);
 }
 async function readBody(req, limit = 20 * 1024 * 1024) {
   const chunks = []; let size = 0;
   for await (const c of req) { size += c.length; if (size > limit) throw httpError(413, 'Body too large'); chunks.push(c); }
   const s = Buffer.concat(chunks).toString('utf8');
-  return s ? JSON.parse(s) : {};
+  if (!s) return {};
+  try { const v = JSON.parse(s); return v && typeof v === 'object' ? v : {}; } catch { throw httpError(400, 'The request is not valid JSON'); }
 }
 // Static and media files, with byte ranges so videos can be scrubbed.
 async function serveFile(req, res, file, cache = 'no-cache') {
@@ -66,7 +102,8 @@ async function serveFile(req, res, file, cache = 'no-cache') {
 
 // ---------- composition ----------
 // Builds the whole application for a project folder. Nothing runs until listen() is called.
-function createApp({ root = path.resolve(__dirname, '..'), log = console } = {}) {
+function createApp({ root = path.resolve(__dirname, '..'), log = console, limits = {} } = {}) {
+  const LIMITS = { ...DEFAULT_LIMITS, ...limits };
   const env = createEnvironment(root);
   const { paths, tools } = env;
   const runner = createProcessRunner({ env: env.env });
@@ -91,6 +128,12 @@ function createApp({ root = path.resolve(__dirname, '..'), log = console } = {})
     }
   };
   const queue = createJobQueue({ queueFile: path.join(paths.PROJECTS_DIR, '.queue.json'), specFn, log });
+  // Add a task, unless the list is already full.
+  function enqueue(spec, label) {
+    if (queue.active().length >= LIMITS.maxQueued) throw httpError(429, `There are already ${LIMITS.maxQueued} tasks waiting. Let some finish or cancel them, then try again.`);
+    return queue.addSpec(spec, label);
+  }
+  let uploading = false;
   const STARTED_AT = Date.now();
 
   // ---------- thumbnails (at most 3 ffmpeg processes at a time) ----------
@@ -151,12 +194,12 @@ function createApp({ root = path.resolve(__dirname, '..'), log = console } = {})
         const h = Number(b.height) === 720 ? 720 : 360;
         await repo.update(b.slug, p => { p.proxyHeight = h; });
         if (jobs.some(j => j.slug === b.slug && j.type === 'proxy' && isActive(j))) throw httpError(409, 'The preview is already being rebuilt');
-        return sendJSON(res, 200, publicJob(queue.addSpec({ type: 'proxy', slug: b.slug }, `Preview ${h}p`)));
+        return sendJSON(res, 200, publicJob(enqueue({ type: 'proxy', slug: b.slug }, `Preview ${h}p`)));
       }
       case 'POST /api/analyze': {
         const b = await readBody(req);
         const p = await repo.load(b.slug);
-        return sendJSON(res, 200, publicJob(queue.addSpec({ type: 'analyze', slug: b.slug }, `Analyze ${p.video}`)));
+        return sendJSON(res, 200, publicJob(enqueue({ type: 'analyze', slug: b.slug }, `Analyze ${p.video}`)));
       }
       case 'POST /api/detect': {
         const b = await readBody(req);
@@ -164,11 +207,11 @@ function createApp({ root = path.resolve(__dirname, '..'), log = console } = {})
       }
       case 'POST /api/captions': {
         const b = await readBody(req);
-        return sendJSON(res, 200, publicJob(queue.addSpec({ type: 'captions', slug: b.slug, clipId: b.clipId }, 'Captions')));
+        return sendJSON(res, 200, publicJob(enqueue({ type: 'captions', slug: b.slug, clipId: b.clipId }, 'Captions')));
       }
       case 'POST /api/transcribe-full': {
         const b = await readBody(req);
-        return sendJSON(res, 200, publicJob(queue.addSpec({ type: 'transcribe', slug: b.slug }, 'Transcribe full stream')));
+        return sendJSON(res, 200, publicJob(enqueue({ type: 'transcribe', slug: b.slug }, 'Transcribe full stream')));
       }
       case 'POST /api/render': {
         const b = await readBody(req);
@@ -178,7 +221,7 @@ function createApp({ root = path.resolve(__dirname, '..'), log = console } = {})
           const c = p.clips.find(x => x.id === id);
           if (!c) continue;
           if (jobs.some(j => j.type === 'render' && j.clipId === id && isActive(j))) continue;
-          out.push(publicJob(queue.addSpec({ type: 'render', slug: b.slug, clipId: id }, `Render ${clipName(c)}`)));
+          out.push(publicJob(enqueue({ type: 'render', slug: b.slug, clipId: id }, `Render ${clipName(c)}`)));
         }
         return sendJSON(res, 200, out);
       }
@@ -190,7 +233,7 @@ function createApp({ root = path.resolve(__dirname, '..'), log = console } = {})
         const old = jobs.find(j => j.type === 'draft' && j.clipId === c.id && isActive(j));
         if (old) queue.cancel(old);
         const from = Number(b.from);
-        return sendJSON(res, 200, publicJob(queue.addSpec({ type: 'draft', slug: b.slug, clipId: c.id, from }, `Quick draft ${clipName(c)}`)));
+        return sendJSON(res, 200, publicJob(enqueue({ type: 'draft', slug: b.slug, clipId: c.id, from }, `Quick draft ${clipName(c)}`)));
       }
       case 'GET /api/upload-text': return sendJSON(res, 200, await exporting.clipUploadText(q.slug, q.clipId));
       case 'POST /api/upload-text/write': {
@@ -272,19 +315,45 @@ function createApp({ root = path.resolve(__dirname, '..'), log = console } = {})
         return sendJSON(res, 200, { ok: true });
       }
       case 'PUT /api/upload': {
-        const name = path.basename(String(q.name || ''));
+        // Import a video dropped on the window into source/. The name must be a plain video file name
+        // (it is not silently "fixed": a name with a folder in it is refused), the size is limited,
+        // and enough disk space must stay free. One import at a time.
+        const name = String(q.name || '');
         if (!VIDEO_EXT.has(path.extname(name).toLowerCase())) throw httpError(400, 'Unsupported file type');
+        safeFileName(name, VIDEO_EXT, 'Video name');
         const dest = path.join(paths.SOURCE_DIR, name);
+        if (!inside(paths.SOURCE_DIR, dest)) throw httpError(400, 'Video name is not valid.');
         if (await exists(dest)) throw httpError(409, 'A video with this name already exists');
-        const tmp = dest + '.uploading';
-        await new Promise((resolve, reject) => {
-          const ws = fs.createWriteStream(tmp);
-          req.pipe(ws);
-          ws.on('finish', resolve);
-          ws.on('error', reject);
-          req.on('error', reject);
-        });
-        await fsp.rename(tmp, dest);
+        const size = Number(req.headers['content-length']);
+        if (!Number.isFinite(size) || size <= 0) throw httpError(411, 'The file size is missing');
+        if (size > LIMITS.maxUploadBytes) throw httpError(413, `This video is larger than ${Math.round(LIMITS.maxUploadBytes / GB)} GB. Copy it into the source folder instead.`);
+        if (fsp.statfs) {
+          const st = await fsp.statfs(paths.SOURCE_DIR).catch(() => null);
+          if (st && st.bavail * st.bsize - size < LIMITS.minFreeBytes) throw httpError(507, 'Not enough free disk space for this video.');
+        }
+        if (uploading) throw httpError(429, 'Another video is being imported. Wait for it to finish.');
+        uploading = true;
+        const tmp = path.join(paths.SOURCE_DIR, `.importing_${process.pid}_${Date.now()}.part`);
+        let ws = null;
+        try {
+          await new Promise((resolve, reject) => {
+            let got = 0;
+            ws = fs.createWriteStream(tmp, { flags: 'wx' });
+            req.on('data', c => { got += c.length; if (got > size) req.destroy(httpError(413, 'The file is larger than announced')); });
+            req.pipe(ws);
+            ws.on('finish', () => (got === size ? resolve() : reject(httpError(400, 'The import was interrupted'))));
+            ws.on('error', reject);
+            req.on('error', reject);
+            req.on('aborted', () => reject(httpError(400, 'The import was interrupted')));
+          });
+          if (await exists(dest)) throw httpError(409, 'A video with this name already exists');
+          await fsp.rename(tmp, dest);
+        } finally {
+          // close the file before removing it (Windows keeps open files), then free the import slot
+          if (ws && !ws.closed) await new Promise(r => { ws.once('close', r); ws.destroy(); });
+          await fsp.rm(tmp, { force: true }).catch(() => {});
+          uploading = false;
+        }
         return sendJSON(res, 200, { file: name });
       }
     }
@@ -292,7 +361,14 @@ function createApp({ root = path.resolve(__dirname, '..'), log = console } = {})
   }
 
   const server = http.createServer(async (req, res) => {
-    const u = new URL(req.url, `http://${HOST}`);
+    for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);
+    const refused = foreignRequest(req, server.address().port);
+    if (refused) {
+      log.error(`Refused ${req.method} ${String(req.url).slice(0, 80)}: ${refused}`);
+      return sendJSON(res, 403, { error: 'This app only answers its own page (http://127.0.0.1).' });
+    }
+    let u;
+    try { u = new URL(req.url, `http://${HOST}`); } catch { return sendJSON(res, 400, { error: 'Bad request' }); }
     try {
       if (u.pathname.startsWith('/api/')) return await handleApi(req, res, u);
       if (u.pathname.startsWith('/media/')) {
@@ -318,6 +394,7 @@ function createApp({ root = path.resolve(__dirname, '..'), log = console } = {})
       const rel = u.pathname === '/' ? 'index.html' : decodeURIComponent(u.pathname.slice(1));
       const f = path.join(paths.PUBLIC_DIR, rel);
       if (!inside(paths.PUBLIC_DIR, f)) throw httpError(403, 'Forbidden');
+      if (f.endsWith('.html')) res.setHeader('Content-Security-Policy', CSP);
       return serveFile(req, res, f);
     } catch (e) {
       if (!res.headersSent) sendJSON(res, e.code && e.code >= 400 && e.code < 600 ? e.code : 500, { error: e.message });
@@ -342,11 +419,21 @@ function createApp({ root = path.resolve(__dirname, '..'), log = console } = {})
     }));
   }
 
-  return { env, repo, ffmpeg, detection, transcription, rendering, exporting, presets, queue, server, listen, handleApi };
+  // Stop the running tool (ffmpeg / whisper) when the app is closed, so nothing keeps working,
+  // or writing files, in the background. Tasks that were waiting stay saved for "Resume".
+  function stopTools() {
+    for (const j of queue.jobs) if (j.child) { try { j.child.kill(); } catch { /* already gone */ } }
+  }
+
+  return { env, repo, ffmpeg, detection, transcription, rendering, exporting, presets, queue, server, listen, handleApi, stopTools, limits: LIMITS };
 }
 
 if (require.main === module) {
-  createApp().listen(Number(process.env.PORT) || 5199, { open: !process.argv.includes('--no-open') });
+  const app = createApp();
+  app.listen(Number(process.env.PORT) || 5199, { open: !process.argv.includes('--no-open') });
+  // Ctrl+C, closing the window (SIGHUP on Windows) or a normal stop: end the running tool first.
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK']) process.on(sig, () => { app.stopTools(); process.exit(0); });
+  process.on('exit', app.stopTools);
 }
 
 // Pure functions, re-exported for scripts and tests that used them from this file.

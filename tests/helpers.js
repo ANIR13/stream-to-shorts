@@ -48,6 +48,12 @@ function realTools() {
     const { createProcessRunner } = require(app('src/infrastructure/process'));
     const { createFfmpeg } = require(app('src/infrastructure/ffmpeg'));
     const env = createEnvironment(ROOT);
+    // S2S_FFMPEG_DIR: test with another ffmpeg build (a folder containing ffmpeg and ffprobe).
+    if (process.env.S2S_FFMPEG_DIR) {
+      const ext = env.IS_WIN ? '.exe' : '';
+      env.tools.FFMPEG = path.join(process.env.S2S_FFMPEG_DIR, 'ffmpeg' + ext);
+      env.tools.FFPROBE = path.join(process.env.S2S_FFMPEG_DIR, 'ffprobe' + ext);
+    }
     execFileSync(env.tools.FFMPEG, ['-version'], { stdio: 'ignore' });
     execFileSync(env.tools.FFPROBE, ['-version'], { stdio: 'ignore' });
     if (env.IS_WIN) env.prepare(); // fontconfig file so subtitles find the Windows fonts

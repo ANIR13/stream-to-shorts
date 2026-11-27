@@ -90,7 +90,7 @@ Everything else (captions, styles, shortcuts, several videos, troubleshooting) i
 
 ## Privacy
 
-The app runs a small web server bound to `127.0.0.1` only (not reachable from other machines), has no login, no telemetry and never uploads anything. The only internet access is the one-time download in `setup.bat` / `setup.sh`.
+The app runs a small web server bound to `127.0.0.1` only (not reachable from other machines), answers only its own page (other websites open in your browser can't control it), has no login, no telemetry and never uploads anything. The only internet access is the one-time download in `setup.bat` / `setup.sh`, which checks every file with SHA-256. See **[SECURITY.md](SECURITY.md)** for how the app protects you, and what to know before opening someone else's project file.
 
 ## Project layout
 

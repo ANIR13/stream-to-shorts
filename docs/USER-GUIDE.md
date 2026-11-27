@@ -117,3 +117,13 @@ The **⋯** button next to the video list opens this video's project or output f
 - You need **Node.js** installed.
 - Whisper models live in `tools/whisper/models/` (`setup.bat` / `setup.sh` download `ggml-small.bin`). For better accuracy, add `ggml-medium.bin` or `ggml-large-v3.bin` from https://huggingface.co/ggerganov/whisper.cpp. Bigger models are slower.
 - For Arabic captions, pick **Arial** or **Tahoma** as the caption font, because Impact has no Arabic letters.
+
+## Sharing projects safely
+
+You can copy a project folder (`projects/<video name>/`) to another computer together with its video. When you receive one from someone else:
+
+- The app checks it when it opens and refuses or repairs anything unsafe (a video outside the `source` folder, file names that leave the app folders). It can't run programs.
+- Its titles and captions end up in your shorts: read them before publishing.
+- Only open projects from people you trust, and never run a script or program that comes with one.
+
+More details: [SECURITY.md](../SECURITY.md).

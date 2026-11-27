@@ -50,7 +50,7 @@ function createEnvironment(root, { lookup = onPath } = {}) {
 
   // Create the working folders and, on Windows, the fontconfig file. Called once at startup.
   function prepare() {
-    for (const d of [paths.SOURCE_DIR, paths.OUTPUT_DIR, paths.PROJECTS_DIR]) fs.mkdirSync(d, { recursive: true });
+    for (const d of [paths.SOURCE_DIR, paths.OUTPUT_DIR, paths.PROJECTS_DIR, TOOLS_DIR]) fs.mkdirSync(d, { recursive: true });
     if (IS_WIN) fs.writeFileSync(paths.FONTCONF, `<?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
 <fontconfig>
