@@ -72,7 +72,7 @@ function createApp({ root = path.resolve(__dirname, '..'), log = console } = {})
   const runner = createProcessRunner({ env: env.env });
   const ffmpeg = createFfmpeg({ ffmpegPath: tools.FFMPEG, ffprobePath: tools.FFPROBE, runner });
   const trash = createTrash({ root, runner });
-  const repo = createProjectRepository({ projectsDir: paths.PROJECTS_DIR, sourceDir: paths.SOURCE_DIR, probe: src => ffmpeg.probe(src) });
+  const repo = createProjectRepository({ projectsDir: paths.PROJECTS_DIR, sourceDir: paths.SOURCE_DIR, outputDir: paths.OUTPUT_DIR, probe: src => ffmpeg.probe(src) });
   const detection = createDetectionService({ repo, ffmpeg, sourceDir: paths.SOURCE_DIR });
   const transcription = createTranscriptionService({ repo, ffmpeg, runner, whisperPath: tools.WHISPER, modelsDir: paths.MODELS_DIR, threads: env.WHISPER_THREADS, sourceDir: paths.SOURCE_DIR, isWin: env.IS_WIN });
   const rendering = createRenderingService({ repo, ffmpeg, transcription, outputDir: paths.OUTPUT_DIR, sourceDir: paths.SOURCE_DIR, log });

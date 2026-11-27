@@ -71,7 +71,9 @@ const clipNo = c => c.num || (S.p.clips.indexOf(c) + 1);
 const eff = c => Layout.effective(S.p, c);
 // A rendered short is outdated when anything that affects the video changed after it was rendered.
 const isOutdated = c => !!(c.output && c.renderSig && c.renderSig !== Layout.renderSig(S.p, c));
-const needsRender = c => !c.output || isOutdated(c);
+// A short deleted outside the app (flagged by the server) needs rendering again.
+const isMissing = c => !!(c.output && c.outputMissing);
+const needsRender = c => !c.output || isMissing(c) || isOutdated(c);
 function overlapsOf(c) {
   return S.p.clips.filter(o => o !== c && o.start < c.end - 0.05 && o.end > c.start + 0.05);
 }
@@ -412,6 +414,7 @@ function clipPills(c) {
     const last = S.jobs.filter(x => x.clipId === c.id && x.slug === S.p.slug && x.type === 'render').pop();
     if (last && last.status === 'error') out.push(`<span class="pill err" title="${esc(last.hint || last.error)} (details in Tasks)">Failed</span>`);
     else if (last && last.status === 'cancelled') out.push(`<span class="pill warn" title="The render was cancelled. Retry it from Tasks or click Render.">Cancelled</span>`);
+    else if (isMissing(c)) out.push(`<span class="pill err" title="The video file of this short was deleted or moved outside the app. Render it again, or put the file back in the output folder.">File missing</span>`);
     else if (isOutdated(c)) out.push(`<span class="pill warn" title="You changed this clip after it was rendered. Render it again to update the video.">Outdated</span>`);
     else if (c.output) out.push(`<span class="pill ok">Rendered</span>`);
   }
@@ -477,7 +480,7 @@ function visibleClips() {
       const hay = [c.title1, c.title2, c.description].filter(Boolean).join(' ').toLowerCase();
       if (!(String(clipNo(c)) === num || hay.includes(q))) return false;
     }
-    if (f === 'todo') return !c.output;
+    if (f === 'todo') return !c.output || isMissing(c);
     if (f === 'outdated') return isOutdated(c);
     if (f === 'untitled') return !c.title1 && !c.title2;
     if (f === 'failed') return lastRenderJob(c)?.status === 'error';
@@ -496,7 +499,7 @@ function renderClipList() {
   const clips = S.p.clips;
   const shown = visibleClips();
   const filtered = shown.length !== clips.length;
-  const nDone = clips.filter(c => c.output && !isOutdated(c)).length, nOld = clips.filter(isOutdated).length;
+  const nDone = clips.filter(c => c.output && !isMissing(c) && !isOutdated(c)).length, nOld = clips.filter(c => !isMissing(c) && isOutdated(c)).length;
   $('#clipCount').textContent = clips.length ? (filtered ? `(${shown.length}/${clips.length})` : `(${clips.length})`) : '';
   $('#selectAll').checked = shown.length && shown.every(c => c.selected);
   const nSel = clips.filter(c => c.selected).length;
