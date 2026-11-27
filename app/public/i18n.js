@@ -374,7 +374,8 @@
 
     // ---- pills ----
     'Rendered': 'Rendu', 'Outdated': 'Obsolète', 'Failed': 'Échec', 'Cancelled': 'Annulé', 'Queued': 'En file',
-    'Custom': 'Personnalisé', 'Too long': 'Trop long',
+    'Custom': 'Personnalisé', 'Too long': 'Trop long', 'File missing': 'Fichier manquant',
+    'The video file of this short was deleted or moved outside the app. Render it again, or put the file back in the output folder.': 'La vidéo de ce short a été supprimée ou déplacée en dehors de l\'app. Relancez le rendu, ou remettez le fichier dans le dossier output.',
 
     // ---- detect popover ----
     'How many': 'Combien',

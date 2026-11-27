@@ -70,3 +70,26 @@ test('concurrent updates of one project are serialized (no lost writes)', async 
   assert.equal(q.clips.length, 20);
   assert.equal(new Set(q.clips.map(c => c.num)).size, 20);
 });
+
+test('shorts deleted outside the app are flagged as missing, never stored', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 's2s-repo-'));
+  const sourceDir = path.join(root, 'source'), projectsDir = path.join(root, 'projects'), outputDir = path.join(root, 'output');
+  fs.mkdirSync(sourceDir); fs.mkdirSync(projectsDir); fs.mkdirSync(path.join(outputDir, 'm'), { recursive: true });
+  fs.writeFileSync(path.join(sourceDir, 'm.mp4'), '');
+  const repo = createProjectRepository({ projectsDir, sourceDir, outputDir, probe: async () => ({ duration: 60, width: 1920, height: 1080, fps: 30, hasAudio: true, size: 1 }) });
+  await repo.open('m.mp4');
+  await repo.update('m', p => {
+    p.clips = [{ id: 'a', start: 0, end: 5, output: 'short_01.mp4' }, { id: 'b', start: 10, end: 15, output: 'short_02.mp4' }, { id: 'c', start: 20, end: 25 }];
+  });
+  fs.writeFileSync(path.join(outputDir, 'm', 'short_01.mp4'), 'video');
+
+  let p = await repo.load('m');
+  assert.deepEqual(p.clips.map(c => !!c.outputMissing), [false, true, false]);
+  assert.equal(p.clips[1].output, 'short_02.mp4');                     // render record kept
+  const onDisk = JSON.parse(fs.readFileSync(repo.projFile('m'), 'utf8'));
+  assert.equal(onDisk.clips.some(c => 'outputMissing' in c), false);   // computed, not saved
+
+  fs.writeFileSync(path.join(outputDir, 'm', 'short_02.mp4'), 'video'); // file put back
+  p = await repo.load('m');
+  assert.equal(p.clips.some(c => c.outputMissing), false);
+});

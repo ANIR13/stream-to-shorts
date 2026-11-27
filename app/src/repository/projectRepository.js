@@ -8,8 +8,9 @@ const { httpError } = require('../shared/errors');
 const { defaultProject, ensureNums, mergeClientSave } = require('../core/project');
 const { SCHEMA_VERSION, schemaVersionOf, migrate, needsMigration } = require('../core/schema');
 
-// projectsDir: projects folder; sourceDir: recordings folder; probe(file) -> video facts (for new projects).
-function createProjectRepository({ projectsDir, sourceDir, probe }) {
+// projectsDir: projects folder; sourceDir: recordings folder; probe(file) -> video facts (for new projects);
+// outputDir (optional): finished shorts, to flag clips whose short was deleted outside the app.
+function createProjectRepository({ projectsDir, sourceDir, probe, outputDir = null }) {
   const projDir = slug => path.join(projectsDir, slugify(slug));
   const projFile = slug => path.join(projDir(slug), 'project.json');
   const fileIn = (slug, ...parts) => path.join(projDir(slug), ...parts);
@@ -29,6 +30,15 @@ function createProjectRepository({ projectsDir, sourceDir, probe }) {
     if (!p) throw httpError(404, 'Project not found');
     migrate(p);
     p.hasProxy = await exists(fileIn(slug, 'proxy.mp4'));
+    // A short deleted outside the app (Explorer, file manager) is flagged, not forgotten: the clip
+    // keeps its render record and shows as rendered again if the file comes back.
+    if (outputDir) {
+      const dir = path.join(outputDir, slugify(slug));
+      await Promise.all(p.clips.map(async c => {
+        if (c.output && !(await exists(path.join(dir, c.output)))) c.outputMissing = true;
+        else delete c.outputMissing;
+      }));
+    }
     return p;
   }
 
@@ -58,7 +68,8 @@ function createProjectRepository({ projectsDir, sourceDir, probe }) {
       await mutate(p);
       ensureNums(p);
       p.updated = Date.now();
-      delete p.hasProxy;
+      delete p.hasProxy; // computed on every load, never stored
+      for (const c of p.clips) delete c.outputMissing;
       await writeJSON(projFile(slug), p);
       return load(slug);
     });
