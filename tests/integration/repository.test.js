@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { createProjectRepository } = require('../app/src/repository/projectRepository');
+const { createProjectRepository } = require('../../app/src/repository/projectRepository');
 
 function setup() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 's2s-repo-'));

@@ -2,7 +2,7 @@
 // FFmpeg adapter, with a fake process runner (no ffmpeg needed).
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createFfmpeg, parseVersion, filterArgFor, parseProbe, gpuArgsFor } = require('../app/src/infrastructure/ffmpeg');
+const { createFfmpeg, parseVersion, filterArgFor, parseProbe, gpuArgsFor } = require('../../app/src/infrastructure/ffmpeg');
 
 test('ffmpeg version and filter-script argument', () => {
   assert.equal(parseVersion('ffmpeg version 9.0.2-4 Copyright (c) 2000-2026'), 9);

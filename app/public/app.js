@@ -813,7 +813,7 @@ window.addEventListener('mousemove', e => {
   if (d.kind === 'start' || d.kind === 'end') {
     const sn = e.altKey ? { t: r1(t) } : snapEdge(r1(t), d.kind);
     const v = sn.t;
-    if (d.kind === 'start') d.c.start = Math.min(v, r1(d.c.end - 2)); else d.c.end = Math.max(v, r1(d.c.start + 2));
+    Object.assign(d.c, Timing.setEdge(d.c, d.kind, v, dur));
     seek(d.kind === 'start' ? d.c.start : d.c.end);
     const tip = $('#tlTip'); tip.classList.remove('hidden'); tip.style.left = x + 'px';
     tip.textContent = fmt(d.kind === 'start' ? d.c.start : d.c.end) + (sn.how ? ' · ' + tr(sn.how) : '');
@@ -881,45 +881,14 @@ function speechSegs() {
   if (speechCache.key === key) return speechCache.segs;
   let words = S.transcript ? S.transcript.words.slice() : [];
   for (const c of S.p.clips) for (const ch of c.captions || []) for (const w of ch.words || []) words.push(w);
-  words = words.filter(w => Number.isFinite(w.s) && Number.isFinite(w.e) && w.e >= w.s).sort((a, b) => a.s - b.s);
-  const segs = []; // [start, end, last word]
-  for (const w of words) {
-    const l = segs[segs.length - 1];
-    if (l && w.s - l[1] < 0.25) { if (w.e >= l[1]) { l[1] = w.e; l[2] = w.w; } } else segs.push([w.s, w.e, w.w]);
-  }
+  const segs = Timing.speechSegments(words); // [start, end, last word]
   speechCache = { key, segs };
   return segs;
 }
-const SNAP_RANGE = 1.5;
+// Clip edges stick to pauses in speech (rules in timing.js); Alt while dragging turns it off.
 function snapEdge(t, which) {
   if (!S.snap || !S.p) return { t };
-  const segs = speechSegs();
-  if (segs.length) {
-    let best = null;
-    for (let i = -1; i < segs.length; i++) {
-      const gs = i < 0 ? 0 : segs[i][1], ge = i + 1 < segs.length ? segs[i + 1][0] : S.p.meta.duration;
-      if (ge < t - SNAP_RANGE) continue;
-      if (gs > t + SNAP_RANGE) break;
-      // start just before the next words, end just after the last ones
-      const target = which === 'start' ? Math.max(gs, ge - 0.15) : Math.min(ge, gs + 0.3);
-      const d = Math.abs(target - t);
-      if (d > SNAP_RANGE) continue;
-      const sentence = i >= 0 && /[.!?…]["»”]?$/.test(segs[i][2] || '');
-      const score = d - (sentence ? 0.5 : 0);
-      if (!best || score < best.score) best = { t: target, score, how: sentence ? 'end of a sentence' : 'pause in speech' };
-    }
-    if (best) return { t: r1(best.t), how: best.how };
-    if (segs.some(g => t > g[0] - SNAP_RANGE && t < g[1] + SNAP_RANGE)) return { t }; // talking without a pause here
-  }
-  if (S.loudNorm) {
-    // no words known here: use the quietest second nearby
-    const L = S.loudNorm, a = Math.max(0, Math.floor(t - SNAP_RANGE)), b = Math.min(L.length - 1, Math.ceil(t + SNAP_RANGE));
-    const here = L[clamp(Math.floor(t), 0, L.length - 1)];
-    let mi = clamp(Math.round(t), a, b);
-    for (let i = a; i <= b; i++) if (L[i] < L[mi]) mi = i;
-    if (L[mi] < here - 0.1) return { t: r1(mi + 0.5), how: 'quiet moment' };
-  }
-  return { t };
+  return Timing.snapEdge(t, which, { segs: speechSegs(), duration: S.p.meta.duration, loudNorm: S.loudNorm });
 }
 S.snap = store.get('snapSpeech') !== '0';
 $('#snapSpeech').checked = S.snap;
@@ -1208,8 +1177,7 @@ function setClipTime(which, t, snap = false) {
   const c = selClip(); if (!c || t == null) return '';
   let how = '';
   if (snap) { const sn = snapEdge(t, which); t = sn.t; how = sn.how || ''; }
-  t = r1(clamp(t, 0, S.p.meta.duration));
-  if (which === 'start') c.start = Math.min(t, r1(c.end - 2)); else c.end = Math.max(t, r1(c.start + 2));
+  Object.assign(c, Timing.setEdge(c, which, t, S.p.meta.duration));
   S.p.clips.sort((a, b) => a.start - b.start);
   scheduleSave(); renderEditor(); renderClipList(); drawTimeline(); drawPreview();
   return how;

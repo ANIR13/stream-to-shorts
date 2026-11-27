@@ -334,6 +334,9 @@ function createApp({ root = path.resolve(__dirname, '..'), log = console } = {})
       const url = `http://${HOST}:${port}`;
       log.log(`\n  Stream → Shorts is running at ${url}\n  (local only — ${env.IS_WIN ? 'close this window' : 'press Ctrl+C'} to stop)\n`);
       log.log(`  ffmpeg: ${tools.FFMPEG} (v${ffmpeg.major}) · speech recognition: ${tools.WHISPER || 'not installed'}\n`);
+      for (const m of env.missingTools()) log.log(`  ! ${m}\n`);
+      // Half-written shorts left by a render that was running when the app was closed or crashed.
+      rendering.cleanupPartial().then(n => { if (n) log.log(`  Removed ${n} unfinished render file(s) from the last session.\n`); }, e => log.error(e));
       if (open) openWith(url);
       resolve(server);
     }));

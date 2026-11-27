@@ -2,6 +2,7 @@
 // Project model: defaults, clip numbering, and merging a save from the browser. Pure functions.
 const { DETECT_DEFAULTS } = require('./detection');
 const { httpError } = require('../shared/errors');
+const Timing = require('../../public/timing.js');
 
 const STYLE_DEFAULTS = {
   titleFont: 'Impact', titleSize: 86, titleColor1: '#FFFFFF', titleColor2: '#FFD400',
@@ -65,6 +66,9 @@ function mergeClientSave(p, incoming, force) {
       const o = old.get(c.id);
       if (o) for (const f of SERVER_FIELDS) c[f] = o[f];
       if (o && o.num) c.num = o.num;
+      // Never store a clip that ends before it starts or lies outside the video.
+      const t = Timing.normalize(c, p.meta && p.meta.duration);
+      if (t.start !== c.start || t.end !== c.end) { c.start = t.start; c.end = t.end; }
       // The server regenerated captions after the browser loaded them: keep the newer server copy
       // instead of letting a stale autosave wipe them.
       if (o && (o.captionsVer || 0) > (c.captionsVer || 0)) {

@@ -5,7 +5,8 @@ const os = require('os');
 const path = require('path');
 const { IS_WIN, onPath } = require('./process');
 
-function createEnvironment(root) {
+// lookup(name): the program's path on the system PATH, or null (injectable for tests).
+function createEnvironment(root, { lookup = onPath } = {}) {
   const TOOLS_DIR = path.join(root, 'tools');
   const paths = {
     ROOT: root,
@@ -21,13 +22,24 @@ function createEnvironment(root) {
   const tool = (rel, systemName) => {
     const p = path.join(TOOLS_DIR, IS_WIN ? rel + '.exe' : rel);
     if (fs.existsSync(p)) return p;
-    return systemName ? onPath(systemName) : null;
+    return systemName ? lookup(systemName) : null;
   };
   const tools = {
     FFMPEG: tool('ffmpeg/ffmpeg', 'ffmpeg') || 'ffmpeg',
     FFPROBE: tool('ffmpeg/ffprobe', 'ffprobe') || 'ffprobe',
     WHISPER: tool('whisper/whisper-cli', 'whisper-cli'),
   };
+  const found = { ffmpeg: tool('ffmpeg/ffmpeg', 'ffmpeg'), ffprobe: tool('ffmpeg/ffprobe', 'ffprobe') };
+
+  // Plain-language problems with the installed tools (shown in the console at startup).
+  function missingTools() {
+    const setup = IS_WIN ? 'setup.bat' : './setup.sh';
+    const out = [];
+    if (!found.ffmpeg || !found.ffprobe) out.push(`FFmpeg was not found (tools/ffmpeg or the system PATH). Videos can't be opened or rendered until you run ${setup}.`);
+    if (!tools.WHISPER) out.push(`Speech recognition (whisper-cli) was not found. Captions are unavailable until you run ${setup}; everything else works.`);
+    else if (!fs.existsSync(paths.MODELS_DIR) || !fs.readdirSync(paths.MODELS_DIR).some(n => n.endsWith('.bin'))) out.push(`No speech model in tools/whisper/models. Captions are unavailable until you run ${setup}.`);
+    return out;
+  }
   const cpus = os.cpus().length;
   const THREADS = Math.max(2, Math.min(12, cpus - 2));
   // Windows needs its own fontconfig file so libass finds C:\Windows\Fonts; Linux uses the system one.
@@ -48,7 +60,7 @@ function createEnvironment(root) {
 `);
   }
 
-  return { IS_WIN, paths, tools, env, THREADS, WHISPER_THREADS, prepare };
+  return { IS_WIN, paths, tools, env, THREADS, WHISPER_THREADS, prepare, missingTools };
 }
 
 module.exports = { createEnvironment };
