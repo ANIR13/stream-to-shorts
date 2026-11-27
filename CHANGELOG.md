@@ -10,6 +10,7 @@ All notable changes to Stream → Shorts are listed here. The format follows [Ke
 - **Project file versions:** `project.json` now has a format number. Older projects are upgraded automatically, with the original kept as `project.v<N>.backup.json`; projects from a newer version of the app are refused instead of overwritten.
 - **"File missing" label** for shorts whose video was deleted or moved outside the app. Those clips count as needing a render; the label disappears if the file comes back.
 - **Automated tests in four levels** (unit, integration, end-to-end with the real FFmpeg, regression) with Node's built-in test runner; see [docs/TESTING.md](docs/TESTING.md).
+- **Continuous integration:** tests on Windows and Linux with Node.js 18, 20, 22 and 24, end-to-end tests with FFmpeg, CodeQL and dependency review, Dependabot for actions, and a release workflow that validates a tag and drafts the GitHub release.
 - **Startup warnings** when FFmpeg, whisper or the speech model is missing, saying what to run.
 - Community files: code of conduct, security policy, support guide, changelog, citation file and roadmap.
 

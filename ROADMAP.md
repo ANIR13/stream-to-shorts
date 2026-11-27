@@ -6,8 +6,7 @@ Nothing here is a promise or a date: priorities change with feedback. If somethi
 
 ## Next
 
-- **First tagged release** (1.1.0) with downloadable ZIPs on the Releases page.
-- **Continuous integration:** run `npm test` on Windows and Linux for every pull request.
+- **First tagged release** (1.1.0) with downloadable ZIPs on the Releases page (the release workflow is ready).
 - **Split the interface** (`app/public/app.js`) into modules: timeline, editor, preview, tasks.
 
 ## Later
