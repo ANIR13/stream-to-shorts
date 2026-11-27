@@ -492,6 +492,12 @@
     'Render your first short': 'Faire le rendu de votre premier short',
     'Make a 30 s clip starting just before this': 'Créer un clip de 30 s qui commence juste avant',
     '＋ Clip': '＋ Clip',
+    'Sharper preview (720p)': 'Aperçu plus net (720p)',
+    'Faster preview (360p)': 'Aperçu plus rapide (360p)',
+    'sharper player and 9:16 preview; rebuilding takes a few minutes; rendered shorts are not affected': 'lecteur et aperçu 9:16 plus nets ; la reconstruction prend quelques minutes ; les shorts rendus ne changent pas',
+    'lighter preview copy, smoother on slow PCs; rendered shorts are not affected': 'copie d\'aperçu plus légère, plus fluide sur les PC lents ; les shorts rendus ne changent pas',
+    'Building preview': 'Création de l\'aperçu',
+    'The preview is already being rebuilt': 'L\'aperçu est déjà en cours de reconstruction',
     'Search clips (title or #number)…': 'Chercher un clip (titre ou n°)…',
     'Search clips': 'Chercher des clips',
     'Show': 'Afficher',
@@ -532,7 +538,7 @@
   const change = l => CHANGE[l] || l
     .replace(/^delete clip (#\S+)$/, 'suppression du clip $1').replace(/^timing of (#\S+)$/, 'minutage de $1')
     .replace(/^title of (#\S+)$/, 'titre de $1').replace(/^captions of (#\S+)$/, 'sous-titres de $1').replace(/^settings of (#\S+)$/, 'réglages de $1');
-  const KIND = { Rendering: 'Rendu', 'Quick draft': 'Brouillon rapide', Captions: 'Sous-titres', Analyzing: 'Analyse', Transcribing: 'Transcription', Working: 'Travail', Waiting: 'En attente' };
+  const KIND = { 'Building preview': 'Aperçu', Rendering: 'Rendu', 'Quick draft': 'Brouillon rapide', Captions: 'Sous-titres', Analyzing: 'Analyse', Transcribing: 'Transcription', Working: 'Travail', Waiting: 'En attente' };
   const KIND_LC = { rendering: 'rendu', draft: 'brouillon', captions: 'sous-titres', analyzing: 'analyse', transcribing: 'transcription', working: 'en cours' };
   const left = r => r.replace(' · less than a minute left', ' · moins d\'une minute restante').replace(/ · about (.+) left$/, ' · environ $1 restantes');
   const counts = r => r.replace(/(\d+) done/, '$1 terminée(s)').replace(/(\d+) failed/, '$1 en échec').replace(/(\d+) cancelled/, '$1 annulée(s)');
@@ -554,6 +560,8 @@
     [/^(\d+) clips? deleted\. (.+)$/, (m, n, r) => `${n} clip(s) supprimé(s). ${t(r)}`],
     [/^(\d+) upload texts? updated$/, '$1 texte(s) de publication mis à jour'],
     [/^Trimmed to ([\d.]+) s$/, 'Coupé à $1 s'],
+    [/^Building the (\d+)p preview… you can keep working meanwhile\.$/, 'Création de l\'aperçu $1p… vous pouvez continuer à travailler.'],
+    [/^Preview (\d+)p$/, 'Aperçu $1p'],
     [/^(\d+) of these clips have no title\.$/, '$1 de ces clips n\'ont pas de titre.'],
     [/^#(\d+) has no title\.$/, 'Le clip #$1 n\'a pas de titre.'],
     [/^Start "(.+)" over\?$/, 'Recommencer « $1 » ?'],
@@ -561,7 +569,7 @@
     [/^Shares footage with clip (.+)$/, 'Partage des images avec le clip $1'],
     [/^(.+) \(details in Tasks\)$/, (m, h) => `${t(h)} (détails dans Tâches)`],
     [/^Moment strength (\d+)\/100$/, 'Force du moment $1/100'],
-    [/^(Rendering|Quick draft|Captions|Analyzing|Transcribing|Working|Waiting) (\d+)\/(\d+)(.*)$/, (m, k, a, b, rest) => `${KIND[k]} ${a}/${b}${left(rest)}`],
+    [/^(Building preview|Rendering|Quick draft|Captions|Analyzing|Transcribing|Working|Waiting) (\d+)\/(\d+)(.*)$/, (m, k, a, b, rest) => `${KIND[k]} ${a}/${b}${left(rest)}`],
     [/^(\d+ done.*) · runs on this PC, keep the black window open$/, (m, r) => `${counts(r)} · tourne sur ce PC, gardez la fenêtre noire ouverte`],
     [/^(rendering|draft|captions|analyzing|transcribing|working) (\d+)%(?: · (\d+) tasks)?$/, (m, k, p, n) => `${KIND_LC[k]} ${p} %${n ? ` · ${n} tâches` : ''}`],
     [/^Render (#.*)$/, 'Rendu $1'],
