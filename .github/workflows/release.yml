@@ -1,0 +1,78 @@
+name: Release
+
+# Push a tag like v1.1.0 (after updating package.json, CITATION.cff and CHANGELOG.md).
+# The release is validated on Linux and Windows, then a DRAFT release is created with the
+# changelog section as notes and a ZIP of the app attached. Review it on GitHub, then publish.
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate · ${{ matrix.os == 'windows-latest' && 'Windows' || 'Linux' }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      S2S_REQUIRE_FFMPEG: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Version, citation and changelog agree with the tag
+        run: npm run check:release
+
+      - name: Install FFmpeg (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends ffmpeg fonts-dejavu-core
+
+      - name: Install FFmpeg (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg -y --no-progress
+
+      - name: Syntax and no-dependencies check
+        run: npm run check
+
+      - name: All tests, including end-to-end
+        run: npm test
+
+  draft:
+    name: Draft the GitHub release
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # create the draft release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Release notes from CHANGELOG.md
+        run: npm run check:release -- --notes notes.md
+
+      - name: Build the ZIP (only the files tracked in git)
+        run: |
+          name="stream-to-shorts-${GITHUB_REF_NAME#v}"
+          git archive --format=zip --prefix="$name/" -o "$name.zip" "$GITHUB_REF_NAME"
+          echo "ZIP=$name.zip" >> "$GITHUB_ENV"
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "$ZIP" --draft --verify-tag --title "Stream → Shorts $GITHUB_REF_NAME" --notes-file notes.md

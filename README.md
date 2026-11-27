@@ -10,7 +10,7 @@
   <img alt="Windows | Linux" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-blue.svg">
   <img alt="Node.js 18+" src="https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg">
   <img alt="100% local" src="https://img.shields.io/badge/privacy-100%25%20local-8a2be2.svg">
-  <img alt="Tests: npm test" src="https://img.shields.io/badge/tests-npm%20test-success.svg">
+  <a href="https://github.com/ANIR13/stream-to-shorts/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/ANIR13/stream-to-shorts/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://buymeacoffee.com/mastersrecipes"><img alt="Buy me a coffee" src="https://img.shields.io/badge/buy%20me%20a%20coffee-support-FFDD00?logo=buymeacoffee&logoColor=black"></a>
 </p>
 

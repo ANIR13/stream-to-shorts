@@ -16,6 +16,8 @@ const { createJobQueue } = require(app('src/services/jobQueue'));
 const Layout = require(app('public/layout.js'));
 
 const tools = realTools();
+// In CI the FFmpeg jobs set S2S_REQUIRE_FFMPEG=1: a missing FFmpeg then fails instead of skipping.
+const required = process.env.S2S_REQUIRE_FFMPEG === '1';
 const SECONDS = 45;
 const BEEPS = [12, 15, 18];          // seconds in the recording where a short beep starts
 const CLIP = { start: 10, end: 20 };
@@ -47,7 +49,8 @@ async function finish(job, ms = 180000) {
   return job;
 }
 
-test('end-to-end: recording -> analysis -> clips -> captions -> 1080x1920 short, in sync, survives a restart', { skip: !tools && NO_FFMPEG, timeout: 300000 }, async () => {
+test('end-to-end: recording -> analysis -> clips -> captions -> 1080x1920 short, in sync, survives a restart', { skip: !tools && !required && NO_FFMPEG, timeout: 300000 }, async () => {
+  assert.ok(tools, NO_FFMPEG);
   const dirs = tmpApp('s2s-e2e-');
   await makeRecording(path.join(dirs.sourceDir, 'my stream.mp4'));
   const s = app3(dirs);

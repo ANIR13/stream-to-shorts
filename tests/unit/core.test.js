@@ -14,9 +14,15 @@ const project = require('../../app/src/core/project');
 
 const { rms, scene, words } = B.input;
 
+// Raw scores are floating-point sums of logarithms and powers; JavaScript engines may differ in the
+// last digit (Node.js 24 gives 20.695253470053743 where 20 gives 20.69525347005374). Compare them to
+// 12 significant digits; clip times, peaks and the 0-100 scores must still match exactly.
+const approx = v => (typeof v === 'number' && !Number.isInteger(v) ? Number(v.toPrecision(12))
+  : Array.isArray(v) ? v.map(approx) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, approx(x)])) : v);
+
 test('detection: every recorded setting gives the same clips and scores', () => {
   for (const [opts, expected] of Object.entries(B.detect)) {
-    assert.deepEqual(detection.findCandidates(rms, scene, JSON.parse(opts)), expected, opts);
+    assert.deepEqual(approx(detection.findCandidates(rms, scene, JSON.parse(opts))), approx(expected), opts);
   }
 });
 

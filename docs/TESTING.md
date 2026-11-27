@@ -12,15 +12,30 @@ Stream → Shorts uses Node.js's built-in test runner (`node:test`), so testing 
 ## Running them
 
 ```bash
+npm run check               # every .js file parses, and package.json has no dependencies
 npm test                    # everything (about 20 s; end-to-end is skipped without FFmpeg)
 npm run test:unit           # a few seconds
 npm run test:integration
 npm run test:e2e            # needs FFmpeg: run setup first, or install it on the PATH
 npm run test:regression
 node --test tests/unit/timing.test.js     # a single file
+S2S_REQUIRE_FFMPEG=1 npm run test:e2e     # fail (instead of skip) when FFmpeg is missing, as CI does
 ```
 
 The end-to-end test uses `tools/ffmpeg` when setup has been run, otherwise `ffmpeg` from the PATH. Speech recognition is not needed by any test.
+
+## Automatic checks (GitHub Actions)
+
+| Workflow | When | What it does |
+|---|---|---|
+| [`ci.yml`](../.github/workflows/ci.yml) | Every pull request and push to `main` | Syntax check and the no-dependencies rule, then unit, integration and regression tests on **Linux and Windows** with **Node.js 18, 20, 22 and 24**; the **end-to-end test with FFmpeg** on Linux and Windows (FFmpeg is installed, and the test fails instead of skipping if it is missing). |
+| [`security.yml`](../.github/workflows/security.yml) | Pull requests, `main`, every Monday | **CodeQL** code scanning of the JavaScript and the workflows (results in the Security tab); on pull requests, **dependency review** of any new dependency or action. |
+| [`release.yml`](../.github/workflows/release.yml) | A pushed tag like `v1.2.3` | **Release validation:** the tag, `package.json`, `CITATION.cff` and `CHANGELOG.md` must agree; all tests including end-to-end on Linux and Windows; then a **draft** release with the changelog notes and a ZIP. |
+| [`dependabot.yml`](../.github/dependabot.yml) | Weekly | Pull requests that update the GitHub Actions used above. |
+
+The same checks run locally: `npm run check` (syntax, no dependencies), `npm test`, `npm run check:release`.
+
+Why Node.js 18: Debian 12 and older Kali releases install it with `setup.sh`. Node 22 and 24 are the current long-term support releases.
 
 ## What is guaranteed, and where it is tested
 

@@ -47,14 +47,23 @@ The server is split into layers; **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)*
 
 ## Before opening a pull request
 
-- **`npm test` passes** (or `node --test tests/`). Add tests for new logic; see **[docs/TESTING.md](docs/TESTING.md)** for the four test levels. Run `npm run test:e2e` too if you touched rendering or FFmpeg (it needs FFmpeg).
+- **`npm run check` and `npm test` pass.** Add tests for new logic; see **[docs/TESTING.md](docs/TESTING.md)** for the four test levels. Run `npm run test:e2e` too if you touched rendering or FFmpeg (it needs FFmpeg).
 - **Bug fixes come with a regression test** in `tests/regression/fixed-bugs.test.js` that fails without the fix.
 - If a test against `tests/fixtures/baseline.json` fails because you changed the output **on purpose**, regenerate it with `node tests/fixtures/make-baseline.js` and say why in the pull request.
 - You tried the change in the app: analyze a short video, edit a clip, render it (and a quick draft if you touched rendering).
 - If you changed text: it reads well in English **and** French (switch with **EN / FR** at the top right).
 - If you touched platform code: it still works on Windows and Linux (say in the pull request which ones you tested).
 - One topic per pull request, with a clear title.
+- **Automatic checks:** every pull request runs the tests on Windows and Linux with Node.js 18, 20, 22 and 24, the end-to-end test with FFmpeg, and a security scan. A pull request can be merged when they are green; if one fails, open its details to see why.
 - Add a line under **Unreleased** in [CHANGELOG.md](CHANGELOG.md) for anything users will notice.
+
+## Releasing (maintainer)
+
+1. Move the **Unreleased** notes in `CHANGELOG.md` into a new `## [1.2.3] - YYYY-MM-DD` section and add its link at the bottom.
+2. Set the same version in `package.json` and `CITATION.cff` (and `date-released`).
+3. Check: `npm run check:release`, then commit and merge as usual.
+4. Tag the merged commit and push the tag: `git tag v1.2.3 && git push origin v1.2.3`.
+5. The **Release** workflow tests the tag on Windows and Linux and creates a **draft** release with the notes and a ZIP. Review it on GitHub, then click **Publish**.
 
 ## Code style
 

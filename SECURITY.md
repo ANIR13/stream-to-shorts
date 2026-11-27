@@ -25,6 +25,10 @@ Only the latest version on the `main` branch receives security fixes. Update by 
 - The maintainer checks the problem and keeps you informed of progress.
 - Once a fix is released, the issue is published as a security advisory and you are credited, unless you prefer to stay anonymous.
 
+## Automatic scanning
+
+Every pull request and the `main` branch are scanned with GitHub **CodeQL**, and new dependencies or actions in a pull request are checked by **dependency review**. The app itself uses no npm packages (this is checked automatically), and Dependabot keeps the GitHub Actions up to date.
+
 ## Scope
 
 **In scope:** the app's own code (`app/`, `setup.*`, `start.*`): the local server and its API, file access inside `source/`, `output/` and `projects/`, commands it runs, and the setup scripts.
