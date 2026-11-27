@@ -323,3 +323,18 @@ body.player-l .player-box { max-height: 64vh; }
 .idea:hover, .idea:focus-visible { border-color: var(--accent); }
 .idea i { font-style: normal; color: var(--accent); }
 .ideas .muted { font-size: 12px; }
+
+/* --- explainable moment scores --- */
+:root { --p-audio: #ffd400; --p-peak: #ff7a00; --p-visual: #5aa9ff; }
+.scorebar.parts span { display: flex; height: 100%; }
+.scorebar.parts i { height: 100%; background: none; }
+.p-audio { background: var(--p-audio) !important; }
+.p-peak { background: var(--p-peak) !important; }
+.p-visual { background: var(--p-visual) !important; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+.why { border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 12px; margin-bottom: 12px; background: var(--panel); }
+.why-parts { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 4px; font-size: 13px; }
+.detect-adv { margin: 4px 0 8px; }
+.detect-adv summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
+.detect-adv .w-row { display: grid; gap: 2px; margin-top: 8px; font-size: 12.5px; }
+.detect-adv .w-row output { font-weight: 600; margin-left: 4px; }

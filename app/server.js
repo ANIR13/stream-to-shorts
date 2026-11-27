@@ -157,7 +157,7 @@ function defaultProject(file, meta, slug) {
     style: { ...STYLE_DEFAULTS },
     whisper: whisperDefaults(),
     publish: { hashtags: '#shorts' },
-    detect: { count: 12, length: 55 },
+    detect: { ...DETECT_DEFAULTS },
     clips: [],
   };
 }
@@ -176,7 +176,7 @@ function withLock(slug, fn) {
 async function loadProject(slug) {
   const p = await readJSON(projFile(slug), null);
   if (!p) throw httpError(404, 'Project not found');
-  deepDefaults(p, { style: STYLE_DEFAULTS, whisper: whisperDefaults(), publish: { hashtags: '#shorts' }, setup: {}, detect: { count: 12, length: 55 }, clips: [] });
+  deepDefaults(p, { style: STYLE_DEFAULTS, whisper: whisperDefaults(), publish: { hashtags: '#shorts' }, setup: {}, detect: { ...DETECT_DEFAULTS }, clips: [] });
   p.hasProxy = await exists(path.join(projDir(slug), 'proxy.mp4'));
   return p;
 }
@@ -475,32 +475,59 @@ function zscore(a) {
   const m = median(a); const mad = median(a.map(v => Math.abs(v - m))) || 1;
   return a.map(v => (v - m) / (1.4826 * mad));
 }
-function findCandidates(rms, scene, { count = 12, length = 55 } = {}) {
+// Auto-detect settings. The defaults reproduce the original detection exactly.
+const DETECT_DEFAULTS = { count: 12, length: 55, wAudio: 1, wPeak: 0.5, wVisual: 0.3, gap: 3 };
+const num = (v, lo, hi, def) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : def; };
+function detectSettings(d = {}) {
+  const o = {
+    count: Math.round(num(d.count, 1, 40, DETECT_DEFAULTS.count)),
+    length: Math.round(num(d.length, 10, 60, DETECT_DEFAULTS.length)),
+    wAudio: num(d.wAudio, 0, 3, DETECT_DEFAULTS.wAudio),
+    wPeak: num(d.wPeak, 0, 3, DETECT_DEFAULTS.wPeak),
+    wVisual: num(d.wVisual, 0, 3, DETECT_DEFAULTS.wVisual),
+    gap: num(d.gap, 0, 600, DETECT_DEFAULTS.gap),
+  };
+  if (!o.wAudio && !o.wPeak && !o.wVisual) Object.assign(o, { wAudio: 1, wPeak: 0.5, wVisual: 0.3 }); // all off makes no sense
+  return o;
+}
+// Three signals per second, each normalized against the whole stream (robust z-score: how far above
+// a typical moment, in "typical deviations"):
+//   audio  = sustained loudness over ~12 s (excitement, shouting, music)
+//   peak   = the loudest instant within ±2 s (sudden spikes: a scream, an explosion)
+//   visual = on-screen change over ~8 s (scene score from the analysis), capped at 3
+// The moment score is their weighted sum. Picks go from the best down, skipping any clip that would
+// come closer than `gap` seconds to one already picked (temporal diversity).
+function findCandidates(rms, scene, opts = {}) {
+  const { count, length, wAudio, wPeak, wVisual, gap } = detectSettings(opts);
   const n = rms.length;
   if (!n) return [];
   const energy = rms.map(d => Math.pow(10, d / 10));
   const loud = movingAvg(energy, 12).map(v => 10 * Math.log10(v + 1e-12));
   const peak = rms.map((_, i) => Math.max(...rms.slice(Math.max(0, i - 2), i + 3)));
   const act = movingAvg(scene, 8);
-  const lz = zscore(loud), pz = zscore(peak), sz = zscore(act);
-  const score = lz.map((v, i) => v + 0.5 * pz[i] + 0.3 * Math.min(3, sz[i]));
+  const lz = zscore(loud), pz = zscore(peak), sz = zscore(act).map(v => Math.min(3, v));
+  const score = lz.map((v, i) => wAudio * v + wPeak * pz[i] + wVisual * sz[i]);
   const L = Math.min(length, Math.max(10, n - 2));
-  const order = score.map((s, i) => [s, i]).sort((a, b) => b[0] - a[0]);
+  // exact ties (e.g. on-screen action alone, which is capped) go to the louder moment, not the earliest one
+  const order = score.map((s, i) => [s, i]).sort((a, b) => b[0] - a[0] || lz[b[1]] - lz[a[1]]);
   const picked = [];
+  const r2 = v => Math.round(v * 100) / 100;
   for (const [s, i] of order) {
     if (picked.length >= count) break;
     let start = Math.round(i - 0.6 * L);
     start = Math.max(0, Math.min(start, n - L - 1));
     const end = start + L;
-    if (picked.some(c => start < c.end + 3 && end > c.start - 3)) continue;
-    picked.push({ start, end, peak: i, raw: s });
+    if (picked.some(c => start < c.end + gap && end > c.start - gap)) continue;
+    picked.push({ start, end, peak: i, raw: s, parts: { audio: r2(lz[i]), peak: r2(pz[i]), visual: r2(sz[i]) } });
   }
   const max = Math.max(...picked.map(c => c.raw), 1);
-  return picked.map(c => ({ ...c, score: Math.round(100 * Math.max(0, c.raw) / max) }));
+  const weights = { audio: wAudio, peak: wPeak, visual: wVisual };
+  return picked.map(c => ({ ...c, score: Math.round(100 * Math.max(0, c.raw) / max), weights }));
 }
 function candidatesToClips(cands) {
   return cands.map((c, i) => ({
     id: 'c' + Date.now().toString(36) + i, start: c.start, end: c.end, score: c.score,
+    scoreParts: c.parts, scoreWeights: c.weights, scorePeak: c.peak,
     title1: '', title2: '', selected: true, captionsOn: true, captions: null,
   }));
 }
@@ -1039,7 +1066,7 @@ async function handleApi(req, res, u) {
       const a = await readJSON(path.join(projDir(b.slug), 'analysis.json'), null);
       if (!a) throw httpError(400, 'Analyze the video first');
       const p = await updateProject(b.slug, q => {
-        q.detect = { count: Number(b.count) || 12, length: Math.min(60, Number(b.length) || 55) };
+        q.detect = detectSettings(b);
         const fresh = candidatesToClips(findCandidates(a.rms, a.scene, q.detect));
         if (b.mode === 'replace') q.clips = fresh;
         else for (const c of fresh) if (!q.clips.some(o => c.start < o.end && c.end > o.start)) q.clips.push(c);
@@ -1255,4 +1282,4 @@ if (require.main === module) server.listen(PORT, HOST, () => {
   if (!process.argv.includes('--no-open')) openWith(url);
 });
 
-module.exports = { echoMask, stripEchoChunks, uploadText, sentence, gpuArgs, slugFor, friendlyError, renderJob, listOutputs, ensureNums, buildASS, buildFilter, chunkWords, findCandidates, parseWhisper, applyFixes, keepChunks, whisperKey };
+module.exports = { detectSettings, DETECT_DEFAULTS, echoMask, stripEchoChunks, uploadText, sentence, gpuArgs, slugFor, friendlyError, renderJob, listOutputs, ensureNums, buildASS, buildFilter, chunkWords, findCandidates, parseWhisper, applyFixes, keepChunks, whisperKey };
