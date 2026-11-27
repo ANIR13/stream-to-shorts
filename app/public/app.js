@@ -350,7 +350,7 @@ async function loadTranscript() {
   S.transcript = await api(`/api/transcript?slug=${enc(slug())}`).catch(() => null);
 }
 function setPlayerSource(force) {
-  const src = S.p.hasProxy ? `/media/proxy/${enc(slug())}` : `/media/source/${enc(slug())}`;
+  const src = S.p.hasProxy ? `/media/proxy/${enc(slug())}?v=${S.p.proxyVer || 0}` : `/media/source/${enc(slug())}`;
   const note = $('#playerNote');
   note.classList.toggle('hidden', S.p.hasProxy);
   note.textContent = 'Playing the original file. Click "Analyze video" to build a fast, smooth preview.';
@@ -1838,7 +1838,7 @@ function renderBatch() {
   if (!b || !b.total) {
     el.classList.add('hidden'); sum.classList.add('hidden'); document.title = 'Stream to Shorts'; return;
   }
-  const kind = b.running ? ({ render: 'Rendering', draft: 'Quick draft', captions: 'Captions', analyze: 'Analyzing', transcribe: 'Transcribing' }[b.running.type] || 'Working') : 'Waiting';
+  const kind = b.running ? ({ proxy: 'Building preview', render: 'Rendering', draft: 'Quick draft', captions: 'Captions', analyze: 'Analyzing', transcribe: 'Transcribing' }[b.running.type] || 'Working') : 'Waiting';
   const pos = Math.min(b.total, b.finished + 1);
   const left = b.left != null ? (b.left < 60000 ? ' · less than a minute left' : ` · about ${fmtLeft(b.left)} left`) : '';
   const busy = b.running && S.p && b.running.slug !== S.p.slug ? ` · ${videoName(b.running.slug)}` : '';
@@ -1888,6 +1888,7 @@ async function onJobFinished(j, othersActive) {
   if (!S.p || j.slug !== S.p.slug) { loadVideos(); return; }
   if (j.type === 'analyze') { await reloadProject(); await loadAnalysis(); setPlayerSource(false); renderAll(); loadVideos(); }
   else if (j.type === 'transcribe') { await loadTranscript(); renderCaptionsTab(); }
+  else if (j.type === 'proxy') { await reloadProject(); setPlayerSource(false); }
   else { await reloadProject(); if (currentTab() === 'exports' || j.type === 'render') loadExports(); }
 }
 function renderJobs() {
@@ -2097,12 +2098,24 @@ function setVideoMenu(open) {
   vmenu.style.left = clamp(r.left, 8, window.innerWidth - mw - 8) + 'px';
   vmenu.style.top = (r.bottom + 6) + 'px';
   vmenu.querySelectorAll('[data-vm]').forEach(b => { b.disabled = !S.p; });
+  if (S.p) {
+    const sharp = Number(S.p.proxyHeight) === 720;
+    $('#vmProxyTitle').textContent = tr(sharp ? 'Faster preview (360p)' : 'Sharper preview (720p)');
+    $('#vmProxyNote').textContent = tr(sharp ? 'lighter preview copy, smoother on slow PCs; rendered shorts are not affected'
+      : 'sharper player and 9:16 preview; rebuilding takes a few minutes; rendered shorts are not affected');
+  }
 }
 $('#btnVideoMenu').addEventListener('click', e => { e.stopPropagation(); const open = vmenu.classList.contains('hidden'); setVideoMenu(open); if (open && e.detail === 0) vmenu.querySelector('[data-vm]:not(:disabled)')?.focus(); });
 document.addEventListener('click', e => { if (!e.target.closest('#videoMenu') && !e.target.closest('#btnVideoMenu')) setVideoMenu(false); });
 vmenu.addEventListener('click', async e => {
   const b = e.target.closest('[data-vm]'); if (!b || b.disabled || !S.p) return;
   setVideoMenu(false);
+  if (b.dataset.vm === 'proxy') {
+    const h = Number(S.p.proxyHeight) === 720 ? 360 : 720;
+    try { await api('/api/proxy', { method: 'POST', body: { slug: slug(), height: h } }); S.p.proxyHeight = h; toast(`Building the ${h}p preview… you can keep working meanwhile.`); pollSoon(); }
+    catch (err) { toast(err.message, 'err'); }
+    return;
+  }
   if (b.dataset.vm === 'project' || b.dataset.vm === 'output') { api('/api/open', { method: 'POST', body: { what: b.dataset.vm, slug: slug() } }).catch(err => toast(err.message, 'err')); return; }
   const file = S.p.video, sl = S.p.slug;
   if (!confirm(`Start "${file}" over?\nIts clips, titles, captions, word fixes and analysis go to the Recycle Bin. Finished shorts in the output folder are kept.`)) return;

@@ -311,6 +311,7 @@ function specFn(spec) {
     case 'captions': return j => captionsJob(j, spec.slug, spec.clipId);
     case 'transcribe': return j => fullTranscriptJob(j, spec.slug);
     case 'analyze': return j => analyzeJob(j, spec.slug);
+    case 'proxy': return j => proxyJob(j, spec.slug);
     default: throw new Error('Unknown task type ' + spec.type);
   }
 }
@@ -406,6 +407,23 @@ function parseMeta(text, key) {
   return out;
 }
 
+// The preview copy played in the app: 360p (fast to build, light) or 720p (sharper player and 9:16 preview).
+const proxyHeight = p => (Number(p.proxyHeight) === 720 ? 720 : 360);
+const proxyEnc = h => ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', h === 720 ? '25' : '28', '-g', '60',
+  '-c:a', 'aac', '-b:a', '96k', '-ac', '2', '-movflags', '+faststart'];
+async function proxyJob(job, slug) {
+  const p = await loadProject(slug);
+  const dir = projDir(slug), h = proxyHeight(p);
+  job.message = 'Building preview';
+  try {
+    await runProc(job, FFMPEG, ['-hide_banner', '-nostats', '-progress', 'pipe:1', '-y', '-i', path.join(SOURCE_DIR, p.video),
+      '-vf', `fps=30,scale=-2:${h},format=yuv420p`, '-map', '0:v:0', '-map', '0:a?', ...proxyEnc(h), 'proxy.tmp.mp4'],
+      { cwd: dir, duration: p.meta.duration });
+  } catch (e) { await fsp.rm(path.join(dir, 'proxy.tmp.mp4'), { force: true }).catch(() => {}); throw e; }
+  await fsp.rename(path.join(dir, 'proxy.tmp.mp4'), path.join(dir, 'proxy.mp4'));
+  await updateProject(slug, q => { q.proxyVer = Date.now(); q.proxyBuiltHeight = h; });
+}
+
 async function analyzeJob(job, slug) {
   const p = await loadProject(slug);
   const dir = projDir(slug);
@@ -420,10 +438,10 @@ async function analyzeJob(job, slug) {
   }
 
   job.message = 'Building fast preview + scanning action';
-  const fc = "[0:v]fps=30,scale=-2:360,format=yuv420p[p];[0:v]fps=2,scale=160:-2,select='gte(scene,0)',metadata=print:key=lavfi.scene_score:file=scene.txt,nullsink";
+  const ph = proxyHeight(p);
+  const fc = `[0:v]fps=30,scale=-2:${ph},format=yuv420p[p];[0:v]fps=2,scale=160:-2,select='gte(scene,0)',metadata=print:key=lavfi.scene_score:file=scene.txt,nullsink`;
   await runProc(job, FFMPEG, ['-hide_banner', '-nostats', '-progress', 'pipe:1', '-y', '-i', src, '-filter_complex', fc,
-    '-map', '[p]', '-map', '0:a?', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '28', '-g', '60',
-    '-c:a', 'aac', '-b:a', '96k', '-ac', '2', '-movflags', '+faststart', 'proxy.tmp.mp4'],
+    '-map', '[p]', '-map', '0:a?', ...proxyEnc(ph), 'proxy.tmp.mp4'],
     { cwd: dir, duration: dur, base: 0.2, span: 0.8 });
   await fsp.rename(path.join(dir, 'proxy.tmp.mp4'), path.join(dir, 'proxy.mp4'));
 
@@ -438,6 +456,7 @@ async function analyzeJob(job, slug) {
   await writeJSON(path.join(dir, 'analysis.json'), { rms, scene, created: Date.now() });
   await updateProject(slug, q => {
     q.analyzed = true;
+    q.proxyVer = Date.now(); q.proxyBuiltHeight = ph;
     if (!q.clips.length) q.clips = candidatesToClips(findCandidates(rms, scene, q.detect));
   });
 }
@@ -1000,6 +1019,14 @@ async function handleApi(req, res, u) {
     case 'POST /api/project': {
       const b = await readBody(req);
       return sendJSON(res, 200, await saveFromClient(b.slug, b.project, !!b.force));
+    }
+    case 'POST /api/proxy': {
+      // change this video's preview quality and rebuild only the preview copy
+      const b = await readBody(req);
+      const h = Number(b.height) === 720 ? 720 : 360;
+      await updateProject(b.slug, q => { q.proxyHeight = h; });
+      if (jobs.some(j => j.slug === b.slug && j.type === 'proxy' && isActive(j))) throw httpError(409, 'The preview is already being rebuilt');
+      return sendJSON(res, 200, publicJob(queueSpec({ type: 'proxy', slug: b.slug }, `Preview ${h}p`)));
     }
     case 'POST /api/analyze': {
       const b = await readBody(req);
