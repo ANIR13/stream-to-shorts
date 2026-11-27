@@ -19,9 +19,15 @@ There is no build step: edit the files, then reload the page (interface changes)
 
 ## How the code is organised
 
+The server is split into layers; **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** explains them and where new code belongs.
+
 | File | Role |
 |---|---|
-| `app/server.js` | Local HTTP server: projects, job queue, analysis, captions (whisper.cpp), rendering (ffmpeg). |
+| `app/server.js` | Entry point and HTTP routes: builds the application and calls the services. |
+| `app/src/core/` | Pure logic (detection scoring, captions, render graph, upload texts): the easiest place to add and test logic. |
+| `app/src/services/` | Detection, transcription, rendering, exports, presets, job queue. |
+| `app/src/infrastructure/` | FFmpeg adapter, running programs, tools and environment, trash. |
+| `app/src/repository/` | Projects on disk. |
 | `app/public/app.js` | The web interface logic. |
 | `app/public/layout.js` | 9:16 layout maths, shared by the live preview and the renderer: change both sides at once through this file. |
 | `app/public/i18n.js` | French translations of every interface text. |
@@ -31,14 +37,16 @@ There is no build step: edit the files, then reload the page (interface changes)
 
 1. **No dependencies.** Only Node.js built-ins on the server, plain HTML / CSS / JavaScript in the browser. No npm packages, no frameworks, no build tools.
 2. **Fully local.** The app must never send anything over the internet, collect data or require an account. The server listens on `127.0.0.1` only.
-3. **Windows and Linux.** Use `path.join`, avoid shell-specific commands, and keep `IS_WIN` branches for anything platform-specific (see `tool()`, `openWith()`, `recycle()` in `app/server.js`).
+3. **Windows and Linux.** Use `path.join`, avoid shell-specific commands, and keep platform-specific code in `app/src/infrastructure/` (see `process.js`, `environment.js`, `trash.js`).
 4. **Two languages.** Every new text shown to users needs its French version in `app/public/i18n.js` (an exact entry, or a pattern for texts with numbers or names). Write the English text in the code; texts drawn on canvases go through `tr()`.
-5. **Never lose user work.** Anything that deletes goes to the Recycle Bin / trash (`recycle()`), and edits should stay undoable.
-6. **Never commit media or tools.** Recordings, rendered shorts, project data, ffmpeg, whisper and models are ignored by `.gitignore`; keep it that way.
+5. **Never lose user work.** Anything that deletes goes to the Recycle Bin / trash (`trash.recycle()`), and edits should stay undoable.
+6. **Keep the layers.** Logic goes in `app/src/core` (pure, tested), programs and the operating system only in `app/src/infrastructure`, and project files only through the repository.
+7. **Never commit media or tools.** Recordings, rendered shorts, project data, ffmpeg, whisper and models are ignored by `.gitignore`; keep it that way.
 
 ## Before opening a pull request
 
-- `node --check app/server.js` and `node --check app/public/*.js` pass.
+- **`npm test` passes** (or `node --test tests/`; no ffmpeg or whisper needed). Add tests for new logic in `tests/`.
+- If a test against `tests/fixtures/baseline.json` fails because you changed the output **on purpose**, regenerate it with `node tests/fixtures/make-baseline.js` and say why in the pull request.
 - You tried the change in the app: analyze a short video, edit a clip, render it (and a quick draft if you touched rendering).
 - If you changed text: it reads well in English **and** French (switch with **EN / FR** at the top right).
 - If you touched platform code: it still works on Windows and Linux (say in the pull request which ones you tested).
