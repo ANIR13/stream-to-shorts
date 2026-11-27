@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use Stream → Shorts in your work, please cite it as below."
+type: software
+title: "Stream → Shorts"
+abstract: >-
+  Open-source, privacy-first desktop application that turns long livestream
+  recordings into vertical YouTube Shorts, TikToks and Instagram Reels with
+  automated highlights, offline transcription and animated captions.
+authors:
+  - alias: ANIR13
+version: 1.0.0
+date-released: 2026-11-26
+license: MIT
+repository-code: "https://github.com/ANIR13/stream-to-shorts"
+url: "https://github.com/ANIR13/stream-to-shorts"
+keywords:
+  - video editing
+  - short-form video
+  - highlight detection
+  - speech recognition
+  - captions
+  - ffmpeg
+  - whisper
+  - offline-first

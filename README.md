@@ -1,8 +1,8 @@
 <h1 align="center">Stream → Shorts</h1>
 
 <p align="center">
-  <b>Turn long stream recordings into vertical Shorts, TikToks and Reels with animated captions.</b><br>
-  Free, open source and 100% local: no account, no upload, no cloud.
+  <b>Turn long livestream recordings into vertical YouTube Shorts, TikToks and Instagram Reels<br>with automated highlights, offline transcription and animated captions.</b><br>
+  Free, open source and privacy-first: no account, no upload, no cloud.
 </p>
 
 <p align="center">
@@ -10,7 +10,17 @@
   <img alt="Windows | Linux" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-blue.svg">
   <img alt="Node.js 18+" src="https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg">
   <img alt="100% local" src="https://img.shields.io/badge/privacy-100%25%20local-8a2be2.svg">
+  <img alt="Tests: npm test" src="https://img.shields.io/badge/tests-npm%20test-success.svg">
   <a href="https://buymeacoffee.com/mastersrecipes"><img alt="Buy me a coffee" src="https://img.shields.io/badge/buy%20me%20a%20coffee-support-FFDD00?logo=buymeacoffee&logoColor=black"></a>
+</p>
+
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="docs/USER-GUIDE.md">User guide</a> ·
+  <a href="ROADMAP.md">Roadmap</a> ·
+  <a href="CHANGELOG.md">Changelog</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a> ·
+  <a href="SUPPORT.md">Get help</a>
 </p>
 
 <p align="center">
@@ -18,6 +28,10 @@
 </p>
 
 Stream → Shorts finds the strongest moments of a stream (loudness + on-screen action), lets you trim and title them in a simple web interface, and renders 9:16 videos with a facecam + gameplay layout, a title and word-by-word captions made by speech recognition **on your own machine**.
+
+<p align="center">
+  <img src="docs/images/demo.gif" alt="Short tour of the app: the editor, the clip list, the live 9:16 preview and a finished short" width="720">
+</p>
 
 ## Features
 
@@ -92,11 +106,19 @@ The app runs a small web server bound to `127.0.0.1` only (not reachable from ot
 
 There is no build step: edit the files and restart the app.
 
+## Roadmap
+
+Planned work (first tagged release, continuous integration, macOS support, more caption styles and languages) is listed in **[ROADMAP.md](ROADMAP.md)** and tracked on the [project board](https://github.com/users/ANIR13/projects). What changed in each version is in the **[changelog](CHANGELOG.md)**.
+
 ## Contributing
 
-Bug reports, ideas and pull requests are welcome. Please read **[CONTRIBUTING.md](CONTRIBUTING.md)** first: it explains how to run the app from source and the few project rules (no dependencies, fully local, Windows + Linux, English + French). For bigger changes, open an issue first.
+Bug reports, ideas and pull requests are welcome. Please read **[CONTRIBUTING.md](CONTRIBUTING.md)** first: it explains how to run the app from source and the few project rules (no dependencies, fully local, Windows + Linux, English + French). For bigger changes, open an issue first. Everyone taking part follows the **[code of conduct](CODE_OF_CONDUCT.md)**.
 
-## Support
+- **Need help?** See **[SUPPORT.md](SUPPORT.md)**.
+- **Found a security problem?** Please report it privately: see **[SECURITY.md](SECURITY.md)**.
+- **Using it in research?** Cite it with **[CITATION.cff](CITATION.cff)** (GitHub shows a *Cite this repository* button).
+
+## Support the project
 
 If Stream → Shorts saves you time, you can support its development:
 

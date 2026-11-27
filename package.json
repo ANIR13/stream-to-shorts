@@ -1,10 +1,22 @@
 {
   "name": "stream-to-shorts",
   "version": "1.0.0",
-  "description": "Local app that turns long stream recordings into vertical 9:16 Shorts, TikToks and Reels with animated captions. Runs entirely on your PC.",
+  "description": "Open-source, privacy-first desktop application that turns long livestream recordings into vertical YouTube Shorts, TikToks and Instagram Reels with automated highlights, offline transcription and animated captions.",
   "private": true,
   "license": "MIT",
   "author": "ANIR13",
+  "homepage": "https://github.com/ANIR13/stream-to-shorts#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ANIR13/stream-to-shorts.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ANIR13/stream-to-shorts/issues"
+  },
+  "funding": {
+    "type": "buymeacoffee",
+    "url": "https://buymeacoffee.com/mastersrecipes"
+  },
   "main": "app/server.js",
   "scripts": {
     "start": "node app/server.js",
@@ -13,16 +25,24 @@
   "engines": {
     "node": ">=18"
   },
+  "os": [
+    "win32",
+    "linux"
+  ],
   "keywords": [
+    "video-editing",
     "shorts",
     "tiktok",
-    "reels",
-    "stream",
-    "twitch",
-    "captions",
-    "whisper",
+    "youtube-shorts",
+    "instagram-reels",
     "ffmpeg",
-    "video-editing",
-    "offline"
+    "whisper",
+    "nodejs",
+    "open-source",
+    "offline-first",
+    "video-automation",
+    "captions",
+    "stream",
+    "twitch"
   ]
 }
