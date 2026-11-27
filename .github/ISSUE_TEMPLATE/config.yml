@@ -1,5 +1,11 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Getting help
+    url: https://github.com/ANIR13/stream-to-shorts/blob/main/SUPPORT.md
+    about: Where to look first and how to ask a question.
+  - name: Report a security problem
+    url: https://github.com/ANIR13/stream-to-shorts/security/advisories/new
+    about: Please report vulnerabilities privately, not in a public issue.
   - name: User guide
     url: https://github.com/ANIR13/stream-to-shorts/blob/main/docs/USER-GUIDE.md
     about: How to use the app, keyboard shortcuts and troubleshooting.

@@ -1,6 +1,6 @@
 # Contributing to Stream → Shorts
 
-Thanks for wanting to help! Bug reports, ideas, translations and pull requests are all welcome.
+Thanks for wanting to help! Bug reports, ideas, translations and pull requests are all welcome. Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md); for questions see [SUPPORT.md](SUPPORT.md), and report security problems privately as described in [SECURITY.md](SECURITY.md).
 
 ## Before you start
 
@@ -52,6 +52,7 @@ The server is split into layers; **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)*
 - If you changed text: it reads well in English **and** French (switch with **EN / FR** at the top right).
 - If you touched platform code: it still works on Windows and Linux (say in the pull request which ones you tested).
 - One topic per pull request, with a clear title.
+- Add a line under **Unreleased** in [CHANGELOG.md](CHANGELOG.md) for anything users will notice.
 
 ## Code style
 
