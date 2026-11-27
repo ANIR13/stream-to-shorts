@@ -427,6 +427,39 @@ S.list = (() => { let sort = 'time'; try { sort = JSON.parse(store.get('clipList
 $('#clipFilter').value = S.list.f; $('#clipSort').value = S.list.s;
 // Moment strength: the auto-detect score, or for clips made by hand, how loud/lively the clip is
 // according to the analysis (0-100).
+// Why a moment was picked, in plain words. parts are z-scores (how far above a typical moment).
+const PART_WORDS = {
+  audio: [[2, 'very loud'], [1, 'loud'], [0.3, 'a bit louder than usual'], [-Infinity, 'not especially loud']],
+  peak: [[2, 'big sudden spike'], [1, 'sudden spike'], [0.3, 'small spike'], [-Infinity, 'no sudden spike']],
+  visual: [[2, 'lots of on-screen action'], [1, 'on-screen action'], [0.3, 'some movement'], [-Infinity, 'calm screen']],
+};
+const PART_KEYS = ['audio', 'peak', 'visual'];
+function explainScore(c) {
+  if (!c || !c.scoreParts) return null;
+  const w = c.scoreWeights || { audio: 1, peak: 0.5, visual: 0.3 };
+  const contrib = PART_KEYS.map(k => Math.max(0, (Number(w[k]) || 0) * (Number(c.scoreParts[k]) || 0)));
+  const total = contrib.reduce((a, b) => a + b, 0);
+  const shares = contrib.map(v => total ? Math.round(v / total * 100) : 0);
+  const words = PART_KEYS.map(k => PART_WORDS[k].find(([min]) => (Number(c.scoreParts[k]) || 0) >= min)[1]);
+  return { words, shares };
+}
+function scoreBarHtml(c) {
+  if (c.score == null) return '';
+  const ex = explainScore(c);
+  const width = clamp(c.score, 3, 100);
+  if (!ex) return `<div class="scorebar" title="${esc(tr('Moment strength') + ' ' + c.score + '/100')}"><i style="width:${width}%"></i></div>`;
+  const tip = `${tr('Moment strength')} ${c.score}/100 · ` + PART_KEYS.map((k, i) => `${tr(ex.words[i])} ${ex.shares[i]}%`).join(' · ');
+  return `<div class="scorebar parts" title="${esc(tip)}"><span style="width:${width}%">${PART_KEYS.map((k, i) => ex.shares[i] ? `<i class="p-${k}" style="width:${ex.shares[i]}%"></i>` : '').join('')}</span></div>`;
+}
+function renderWhy() {
+  const c = selClip(), el = $('#whyMoment'); if (!el) return;
+  const ex = explainScore(c);
+  el.classList.toggle('hidden', !c);
+  if (!c) return;
+  if (!ex) { el.innerHTML = `<span class="muted small">${esc(tr(c.score != null ? 'This clip was detected before score details were kept. Run Auto-detect again to see why.' : 'Made by hand: no detection details.'))}</span>`; return; }
+  el.innerHTML = `<b>${esc(tr('Why this moment?'))}</b> <span class="muted small">${esc(tr('Moment strength'))} ${c.score}/100</span>
+    <div class="why-parts">${PART_KEYS.map((k, i) => `<span class="why-part"><i class="dot p-${k}"></i>${esc(tr(ex.words[i]))} <span class="muted">${ex.shares[i]}%</span></span>`).join('')}</div>`;
+}
 function strengthOf(c) {
   if (c.score != null) return c.score;
   const L = S.loudNorm; if (!L) return -1;
@@ -481,7 +514,7 @@ function renderClipList() {
       <div class="meta">
         <div class="title ${title ? '' : 'untitled'}"${title ? ' translate="no"' : ''}>#${clipNo(c)} ${esc(title) || 'Untitled clip'}</div>
         <div class="sub"><span class="mono">${fmt(c.start, false)}</span>· ${d.toFixed(0)}s ${clipPills(c)}</div>
-        ${c.score != null ? `<div class="scorebar" title="Moment strength ${c.score}/100"><i style="width:${clamp(c.score, 3, 100)}%"></i></div>` : ''}
+        ${scoreBarHtml(c)}
       </div></div>`;
   }).join('');
   if (!clips.length) $('#clipList').innerHTML = `<div class="empty">No clips yet.<br>Click <b>Analyze video</b>, <b>＋ Add</b>, or drag across the timeline to make one.</div>`;
@@ -566,7 +599,8 @@ function addClipAt(start, end) {
   $('#fTitle1').focus();
 }
 
-// auto-detect popover
+// auto-detect popover (defaults match the server's DETECT_DEFAULTS)
+const DETECT_DEFAULTS = { count: 12, length: 55, wAudio: 1, wPeak: 0.5, wVisual: 0.3, gap: 3 };
 $('#btnDetect').addEventListener('click', () => {
   if (!S.p.analyzed) return toast('Analyze the video first. Auto-detect uses the loudness and action scan.', 'err');
   let pop = $('#detectPop');
@@ -574,19 +608,35 @@ $('#btnDetect').addEventListener('click', () => {
   pop = document.createElement('div');
   pop.id = 'detectPop';
   pop.className = 'caption-box';
-  pop.innerHTML = `<div class="grid2"><label>How many<input id="dCount" type="number" min="1" max="40" value="${S.p.detect.count}"></label>
-    <label>Seconds each<input id="dLen" type="number" min="10" max="60" value="${S.p.detect.length}"></label></div>
+  const d = { ...DETECT_DEFAULTS, ...(S.p.detect || {}) };
+  const slider = (id, key, label, hint) => `<label class="w-row" title="${esc(tr(hint))}"><span><i class="dot p-${key}"></i>${esc(tr(label))} <output id="${id}Out">${Number(d[id]).toFixed(1)}</output></span><input id="${id}" type="range" min="0" max="3" step="0.1" value="${d[id]}"></label>`;
+  pop.innerHTML = `<div class="grid2"><label>How many<input id="dCount" type="number" min="1" max="40" value="${d.count}"></label>
+    <label>Seconds each<input id="dLen" type="number" min="10" max="60" value="${d.length}"></label></div>
     <p class="muted small">Finds the loudest, most action-packed moments: reactions, hype and big plays.</p>
+    <details class="detect-adv"><summary>Advanced: what counts as a great moment</summary>
+      ${slider('wAudio', 'audio', 'Loudness', 'Sustained loud moments: excitement, shouting, music')}
+      ${slider('wPeak', 'peak', 'Sudden spikes', 'Short bursts: a scream, an explosion, a big reaction')}
+      ${slider('wVisual', 'visual', 'On-screen action', 'Lots of change on screen: fights, fast moves, scene changes')}
+      <label class="w-row">Minimum spacing between moments (s)<input id="dGap" type="number" min="0" max="600" value="${d.gap}"></label>
+      <div class="row gap"><button class="btn small ghost" data-reset>Reset to defaults</button><span class="muted small">0 turns a signal off.</span></div>
+    </details>
     <div class="row gap"><button class="btn small primary" data-mode="add">Add new moments</button><button class="btn small danger" data-mode="replace">Replace all clips</button></div>`;
+  pop.addEventListener('input', e => { const o = pop.querySelector('#' + e.target.id + 'Out'); if (o) o.textContent = Number(e.target.value).toFixed(1); });
   $('.select-row').before(pop);
   pop.addEventListener('click', async e => {
+    if (e.target.closest('[data-reset]')) {
+      for (const k of ['wAudio', 'wPeak', 'wVisual']) { pop.querySelector('#' + k).value = DETECT_DEFAULTS[k]; pop.querySelector('#' + k + 'Out').textContent = DETECT_DEFAULTS[k].toFixed(1); }
+      pop.querySelector('#dGap').value = DETECT_DEFAULTS.gap;
+      return;
+    }
     const mode = e.target.dataset.mode;
     if (!mode) return;
     if (mode === 'replace' && !confirm('Replace all clips (including your edits) with new suggestions?')) return;
     await saveNow();
     try {
       pushAction(mode === 'replace' ? 'auto-detect (replace)' : 'auto-detect');
-      S.p = await api('/api/detect', { method: 'POST', body: { slug: slug(), count: +$('#dCount').value, length: +$('#dLen').value, mode } });
+      S.p = await api('/api/detect', { method: 'POST', body: { slug: slug(), count: +$('#dCount').value, length: +$('#dLen').value,
+        wAudio: +$('#wAudio').value, wPeak: +$('#wPeak').value, wVisual: +$('#wVisual').value, gap: +$('#dGap').value, mode } });
       S.sel = S.p.clips[0]?.id || null;
       rebaseHistory();
       pop.remove(); renderAll(); toast('Moments updated. Ctrl+Z undoes this.', 'ok');
@@ -936,6 +986,7 @@ function renderEditor() {
   setVal($('#fDesc'), c.description || '');
   $('#fCaptionsOn').checked = c.captionsOn !== false;
   $('#fLayoutMode').value = c.layoutMode || '';
+  renderWhy();
   if ($('#titleIdeas').dataset.for !== c.id) { $('#titleIdeas').innerHTML = ''; $('#titleIdeas').dataset.for = c.id; }
   renderClipStyleSelect();
   renderTitleFit();
