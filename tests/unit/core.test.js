@@ -4,13 +4,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('path');
-const B = require('./fixtures/baseline.json');
-const Layout = require('../app/public/layout.js');
-const detection = require('../app/src/core/detection');
-const captions = require('../app/src/core/captions');
-const render = require('../app/src/core/render');
-const upload = require('../app/src/core/upload');
-const project = require('../app/src/core/project');
+const B = require('../fixtures/baseline.json');
+const Layout = require('../../app/public/layout.js');
+const detection = require('../../app/src/core/detection');
+const captions = require('../../app/src/core/captions');
+const render = require('../../app/src/core/render');
+const upload = require('../../app/src/core/upload');
+const project = require('../../app/src/core/project');
 
 const { rms, scene, words } = B.input;
 

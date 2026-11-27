@@ -7,6 +7,8 @@
   const SAFE = { top: 150, bottom: 1470, right: 960, rightTop: 760, left: 60 };
   const evenFloor = v => Math.max(2, Math.floor(v / 2) * 2);
   const even = v => Math.max(2, Math.round(v / 2) * 2);
+  // Positions may be 0 (sizes may not): a full-width layer must start at x = 0, not 2.
+  const evenPos = v => Math.max(0, Math.round(v / 2) * 2);
 
   function clampRect(r, meta) {
     const x = Math.min(Math.max(0, Math.floor(r.x / 2) * 2), meta.width - 16);
@@ -35,11 +37,11 @@
       const total = heights[0] + heights[1] + gap;
       const f = Math.min(1, avail / total);
       const w = even(W * f);
-      const x = even((W - w) / 2);
+      const x = evenPos((W - w) / 2);
       let y = titleH + Math.max(0, (avail - total * f) / 2);
       parts.forEach(([key, src], i) => {
         const h = even(heights[i] * f);
-        items.push({ key, src, dst: { x, y: even(y), w, h } });
+        items.push({ key, src, dst: { x, y: evenPos(y), w, h } });
         y += h + gap;
       });
       captionY = items[0].dst.y + items[0].dst.h + gap / 2;
@@ -57,7 +59,7 @@
       const avail = BOTTOM - titleH;
       let w = W, h = W * game.h / game.w;
       if (h > avail) { h = avail; w = h * game.w / game.h; }
-      const x = even((W - w) / 2), y = even(titleH + (avail - h) / 2);
+      const x = evenPos((W - w) / 2), y = evenPos(titleH + (avail - h) / 2);
       items.push({ key: 'game', src: game, dst: { x, y, w: even(w), h: even(h) } });
       captionY = h > avail * 0.75 ? y + h * 0.8 : Math.min(y + h + 140, 1700);
     }

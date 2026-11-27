@@ -19,6 +19,9 @@ function parseProbe(j) {
   return { duration: Number(j.format.duration), width: v.width, height: v.height, fps: d ? n / d : 30, hasAudio: !!a, size: Number(j.format.size) };
 }
 
+// Shown when ffmpeg/ffprobe can't be started at all.
+const MISSING_FFMPEG = 'FFmpeg is not installed or could not start. Run the setup again: setup.bat on Windows, ./setup.sh on Linux.';
+
 const HW_ENCODERS = ['h264_qsv', 'h264_nvenc', 'h264_amf'];
 const HW_NAMES = { h264_qsv: 'Intel Quick Sync', h264_nvenc: 'NVIDIA NVENC', h264_amf: 'AMD AMF' };
 // Encoder arguments for a graphics-card encoder at a quality comparable to libx264 -crf <crf>.
@@ -44,7 +47,13 @@ function createFfmpeg({ ffmpegPath, ffprobePath, runner }) {
     // Run ffmpeg as part of a job (progress, cancel, errors: see process.runProc).
     run: (job, args, opts) => runner.runProc(job, ffmpegPath, args, opts),
     async probe(src) {
-      return parseProbe(JSON.parse(await runner.runCapture(ffprobePath, ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', src])));
+      let out;
+      try { out = await runner.runCapture(ffprobePath, ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', src]); }
+      catch (e) {
+        if (/^Cannot start/.test(e.message)) throw new Error(`${MISSING_FFMPEG} (${e.message})`);
+        throw e;
+      }
+      return parseProbe(JSON.parse(out));
     },
     // Find the first hardware H.264 encoder that works on this PC (once, in the background).
     detectHardware() {
@@ -61,4 +70,4 @@ function createFfmpeg({ ffmpegPath, ffprobePath, runner }) {
   return api;
 }
 
-module.exports = { createFfmpeg, parseVersion, filterArgFor, parseProbe, gpuArgsFor, HW_NAMES };
+module.exports = { MISSING_FFMPEG, createFfmpeg, parseVersion, filterArgFor, parseProbe, gpuArgsFor, HW_NAMES };

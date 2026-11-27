@@ -5,8 +5,8 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { SCHEMA_VERSION, MIGRATIONS, schemaVersionOf, migrate } = require('../app/src/core/schema');
-const { createProjectRepository } = require('../app/src/repository/projectRepository');
+const { SCHEMA_VERSION, MIGRATIONS, schemaVersionOf, migrate } = require('../../app/src/core/schema');
+const { createProjectRepository } = require('../../app/src/repository/projectRepository');
 
 // A project as saved by the first releases (format 1): no word fixes, hashtags, setup,
 // detection weights or clip numbers, and a stray hasProxy flag.

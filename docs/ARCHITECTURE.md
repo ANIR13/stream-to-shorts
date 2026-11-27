@@ -37,8 +37,8 @@ flowchart TD
 | `app/src/core/` | Core logic, no I/O | `project.js` (defaults, clip numbers, merging browser saves), `schema.js` (project file versions and migrations), `detection.js` (highlight scoring), `captions.js` (word fixes, hint-word echo, whisper parsing, caption lines), `render.js` (subtitle file and filter graph), `upload.js` (upload texts). |
 | `app/src/repository/` | Persistence | `projectRepository.js`: projects on disk, per-project locks, revisions. |
 | `app/src/services/` | Application services | `detectionService.js` (analysis, preview copy, suggested clips), `transcriptionService.js` (whisper.cpp, captions), `renderingService.js` (shorts and quick drafts), `exportService.js` (output files, upload texts), `presetService.js`, `jobQueue.js` (one task at a time, cancel, retry, resume after restart). |
-| `app/public/` | Browser | `app.js` (interface), `layout.js` (9:16 layout maths shared with the renderer), `i18n.js` (French), `index.html`, `styles.css`. |
-| `tests/` | Tests | `node --test` suites; no server, ffmpeg or whisper needed. |
+| `app/public/` | Browser | `app.js` (interface), `layout.js` (9:16 layout maths shared with the renderer), `timing.js` (clip time rules and snap-to-speech, shared with the server), `i18n.js` (French), `index.html`, `styles.css`. |
+| `tests/` | Tests | `unit/`, `integration/`, `e2e/`, `regression/`: see [TESTING.md](TESTING.md). |
 
 ## Rules of the layers
 
@@ -65,16 +65,11 @@ Each `projects/<video>/project.json` has a `version` field: the **project file f
 
 ## Tests
 
+Tests are grouped in four levels (unit, integration, end-to-end with the real FFmpeg, regression) and use only `node:test`. **[docs/TESTING.md](TESTING.md)** explains how to run them, what each level guarantees and how to add tests.
+
 ```bash
-npm test          # or: node --test tests/
+npm test          # everything; the end-to-end test is skipped when FFmpeg isn't installed
 ```
-
-- `tests/core.test.js` compares the core with `tests/fixtures/baseline.json`, outputs recorded from the code before the modular refactor on synthetic data. A change that alters what a rendered short looks like, or which moments are detected by default, fails here on purpose.
-- `tests/infrastructure.test.js` tests the FFmpeg adapter with a fake process runner.
-- `tests/repository.test.js` and `tests/services.test.js` run on temporary folders with fake ffmpeg / whisper.
-- `tests/schema.test.js` covers project file versions: every migration, upgrades with backup, refusing newer files.
-
-If you change the output **on purpose**, regenerate the baseline (`node tests/fixtures/make-baseline.js`) and explain the change in your pull request.
 
 ## Next steps
 

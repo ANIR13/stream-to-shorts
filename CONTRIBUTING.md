@@ -30,6 +30,7 @@ The server is split into layers; **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)*
 | `app/src/repository/` | Projects on disk. |
 | `app/public/app.js` | The web interface logic. |
 | `app/public/layout.js` | 9:16 layout maths, shared by the live preview and the renderer: change both sides at once through this file. |
+| `app/public/timing.js` | Clip time rules and snap-to-speech, shared by the editor and the server. |
 | `app/public/i18n.js` | French translations of every interface text. |
 | `app/public/index.html`, `styles.css` | Page structure and styles. |
 
@@ -46,7 +47,8 @@ The server is split into layers; **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)*
 
 ## Before opening a pull request
 
-- **`npm test` passes** (or `node --test tests/`; no ffmpeg or whisper needed). Add tests for new logic in `tests/`.
+- **`npm test` passes** (or `node --test tests/`). Add tests for new logic; see **[docs/TESTING.md](docs/TESTING.md)** for the four test levels. Run `npm run test:e2e` too if you touched rendering or FFmpeg (it needs FFmpeg).
+- **Bug fixes come with a regression test** in `tests/regression/fixed-bugs.test.js` that fails without the fix.
 - If a test against `tests/fixtures/baseline.json` fails because you changed the output **on purpose**, regenerate it with `node tests/fixtures/make-baseline.js` and say why in the pull request.
 - You tried the change in the app: analyze a short video, edit a clip, render it (and a quick draft if you touched rendering).
 - If you changed text: it reads well in English **and** French (switch with **EN / FR** at the top right).

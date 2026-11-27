@@ -103,7 +103,21 @@ function createRenderingService({ repo, ffmpeg, transcription, outputDir, source
     await writeUploadText(p, { ...clip, output: outName }, outDir).catch(e => log.error('upload text: ' + e.message));
   }
 
-  return { render, draftFile, writeUploadText, outputDirOf };
+  // Remove half-written shorts (.rendering_*.mp4) left in output/ when the app was closed or crashed
+  // during a render. Finished shorts are never touched. Call once at startup, before tasks resume.
+  async function cleanupPartial() {
+    let n = 0;
+    const dirs = await fsp.readdir(outputDir, { withFileTypes: true }).catch(() => []);
+    for (const d of dirs.filter(x => x.isDirectory())) {
+      const names = await fsp.readdir(path.join(outputDir, d.name)).catch(() => []);
+      for (const name of names.filter(x => /^.rendering_.+.mp4$/.test(x))) {
+        await fsp.rm(path.join(outputDir, d.name, name), { force: true }).then(() => n++, () => {});
+      }
+    }
+    return n;
+  }
+
+  return { render, draftFile, writeUploadText, outputDirOf, cleanupPartial };
 }
 
 module.exports = { createRenderingService, DRAFT_SECONDS };

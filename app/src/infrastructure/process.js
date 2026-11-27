@@ -27,7 +27,7 @@ function createProcessRunner({ env = process.env } = {}) {
       let out = '', err = '';
       c.stdout.on('data', d => out += d);
       c.stderr.on('data', d => err += d);
-      c.on('error', reject);
+      c.on('error', e => reject(new Error(`Cannot start ${path.basename(cmd)}: ${e.message}`)));
       c.on('close', code => code === 0 ? resolve(out) : reject(new Error(err.trim().slice(-800) || `exit ${code}`)));
     });
   }
