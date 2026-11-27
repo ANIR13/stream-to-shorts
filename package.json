@@ -7,10 +7,22 @@
   "author": "ANIR13",
   "main": "app/server.js",
   "scripts": {
-    "start": "node app/server.js"
+    "start": "node app/server.js",
+    "test": "node --test tests/"
   },
   "engines": {
     "node": ">=18"
   },
-  "keywords": ["shorts", "tiktok", "reels", "stream", "twitch", "captions", "whisper", "ffmpeg", "video-editing", "offline"]
+  "keywords": [
+    "shorts",
+    "tiktok",
+    "reels",
+    "stream",
+    "twitch",
+    "captions",
+    "whisper",
+    "ffmpeg",
+    "video-editing",
+    "offline"
+  ]
 }

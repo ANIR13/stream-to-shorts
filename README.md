@@ -82,8 +82,10 @@ The app runs a small web server bound to `127.0.0.1` only (not reachable from ot
 
 | Path | What it is |
 |---|---|
-| `app/server.js` | Local server: projects, job queue, analysis, captions (whisper.cpp), rendering (ffmpeg). Node.js only, no npm packages. |
+| `app/server.js` | Entry point and HTTP routes. Node.js only, no npm packages. |
+| `app/src/` | The server in layers: core logic, services (detection, transcription, rendering, exports, job queue), project repository, FFmpeg adapter. See **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**. |
 | `app/public/` | The web interface (plain HTML, CSS and JavaScript). `layout.js` is shared by the preview and the renderer. |
+| `tests/` | Automated tests: `npm test` (no ffmpeg or whisper needed). |
 | `setup.*`, `start.*` | Setup and launchers for Windows and Linux. |
 | `source/`, `output/`, `projects/` | Your recordings, finished shorts and project data (not part of the repository). |
 | `tools/` | ffmpeg, whisper.cpp and the speech model, downloaded by setup (not part of the repository). |
