@@ -34,7 +34,7 @@ flowchart TD
 | `app/server.js` | Entry point and HTTP | Builds the application (`createApp`), maps each API route to a service, serves static and media files. |
 | `app/src/shared/` | Shared | `errors.js` (HTTP errors, plain-language task errors), `fsutil.js` (JSON files, paths), `validate.js` (safe file names and ids: everything from the browser or a project file passes here), `stats.js` (moving average, robust z-score). |
 | `app/src/infrastructure/` | Infrastructure | `process.js` (running programs, opening folders), `environment.js` (folders, tools, environment), `ffmpeg.js` (**FFmpeg adapter**: the only place that knows how ffmpeg/ffprobe are called), `trash.js` (Recycle Bin / desktop trash). |
-| `app/src/core/` | Core logic, no I/O | `project.js` (defaults, clip numbers, merging browser saves), `schema.js` (project file versions and migrations), `detection.js` (highlight scoring), `captions.js` (word fixes, hint-word echo, whisper parsing, caption lines), `render.js` (subtitle file and filter graph), `upload.js` (upload texts). |
+| `app/src/core/` | Core logic, no I/O | `project.js` (defaults, clip numbers, merging browser saves), `schema.js` (project file versions and migrations), `detection.js` (fast highlight scoring), `smart.js` (smart multi-signal scoring, see [DETECTION.md](DETECTION.md)), `captions.js` (word fixes, hint-word echo, whisper parsing, caption lines), `render.js` (subtitle file and filter graph), `upload.js` (upload texts). |
 | `app/src/repository/` | Persistence | `projectRepository.js`: projects on disk, per-project locks, revisions. |
 | `app/src/services/` | Application services | `detectionService.js` (analysis, preview copy, suggested clips), `transcriptionService.js` (whisper.cpp, captions), `renderingService.js` (shorts and quick drafts), `exportService.js` (output files, upload texts), `presetService.js`, `jobQueue.js` (one task at a time, cancel, retry, resume after restart). |
 | `app/public/` | Browser | `app.js` (interface), `layout.js` (9:16 layout maths shared with the renderer), `timing.js` (clip time rules and snap-to-speech, shared with the server), `i18n.js` (French), `index.html`, `styles.css`. |
@@ -61,6 +61,7 @@ Each `projects/<video>/project.json` has a `version` field: the **project file f
 |---|---|
 | 1 | First releases (projects without a `version` field count as 1). |
 | 2 | Settings added since then are written into the file: word fixes and hint words, upload hashtags, setup checklist, detection weights and spacing; clips get permanent numbers. |
+| 3 | Detection settings get the engine (`fast` or `smart`, fast by default) and the smart weights `wA wV wS wE wC`. Smart clips store `scoreEngine` and `scoreReasons`. |
 
 **To change what `project.json` contains:** bump `SCHEMA_VERSION`, add `MIGRATIONS[old]` that upgrades a project in place, add a test in `tests/schema.test.js`, and add a row to the table above. Never edit a migration that was released.
 

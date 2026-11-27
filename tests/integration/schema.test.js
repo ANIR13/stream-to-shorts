@@ -34,7 +34,7 @@ test('format 1 -> current: new settings get defaults, user values are kept', () 
   assert.equal(p.whisper.language, 'en');             // kept
   assert.deepEqual(p.whisper.fixes, []);              // filled
   assert.equal(p.whisper.prompt, '');
-  assert.deepEqual(p.detect, { count: 8, length: 40, wAudio: 1, wPeak: 0.5, wVisual: 0.3, gap: 3 });
+  assert.deepEqual(p.detect, { count: 8, length: 40, wAudio: 1, wPeak: 0.5, wVisual: 0.3, gap: 3, engine: 'fast', wA: 0.2, wV: 0.15, wS: 0.35, wE: 0.2, wC: 0.1 });
   assert.equal(p.publish.hashtags, '#shorts');
   assert.deepEqual(p.setup, {});
   assert.deepEqual(p.clips.map(c => c.num), [1, 2]);
@@ -101,4 +101,13 @@ test('new projects start at the current format', async () => {
   const p = await repo.open('fresh.mp4');
   assert.equal(p.version, SCHEMA_VERSION);
   assert.equal(JSON.parse(fs.readFileSync(path.join(projectsDir, 'fresh', 'project.json'), 'utf8')).version, SCHEMA_VERSION);
+});
+
+test('format 2 -> 3: detection gets the engine (fast by default) and the smart weights, nothing else changes', () => {
+  const p = { version: 2, video: 'v.mp4', slug: 'v', meta: { duration: 60 }, detect: { count: 5, length: 30, wAudio: 2, wPeak: 0, wVisual: 1, gap: 10 }, clips: [{ id: 'a', num: 1, start: 0, end: 20, score: 80 }] };
+  const before = structuredClone(p);
+  migrate(p);
+  assert.deepEqual(p.detect, { ...before.detect, engine: 'fast', wA: 0.2, wV: 0.15, wS: 0.35, wE: 0.2, wC: 0.1 });
+  assert.deepEqual(p.clips, before.clips);
+  assert.equal(p.version, SCHEMA_VERSION);
 });

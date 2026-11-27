@@ -9,8 +9,9 @@
 const { httpError } = require('../shared/errors');
 const { STYLE_DEFAULTS, whisperDefaults, ensureNums } = require('./project');
 const { DETECT_DEFAULTS } = require('./detection');
+const { SMART_DEFAULTS } = require('./smart');
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 const MIGRATIONS = {
   // 1 → 2: projects from before versioned migrations. Settings added since then (hint words and
@@ -26,6 +27,11 @@ const MIGRATIONS = {
     p.clips = Array.isArray(p.clips) ? p.clips : [];
     ensureNums(p);
     delete p.hasProxy;
+  },
+  // 2 → 3: smart detection. The detection settings get the engine ("fast" stays the default, so
+  // nothing changes for existing projects) and the weights of the five signals.
+  2: p => {
+    p.detect = { ...SMART_DEFAULTS, ...(p.detect || {}) };
   },
 };
 

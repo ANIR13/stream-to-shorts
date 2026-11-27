@@ -57,6 +57,7 @@ function candidatesToClips(cands, now = Date.now()) {
   return cands.map((c, i) => ({
     id: 'c' + now.toString(36) + i, start: c.start, end: c.end, score: c.score,
     scoreParts: c.parts, scoreWeights: c.weights, scorePeak: c.peak,
+    ...(c.engine ? { scoreEngine: c.engine, scoreReasons: c.reasons } : {}),
     title1: '', title2: '', selected: true, captionsOn: true, captions: null,
   }));
 }

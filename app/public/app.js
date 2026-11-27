@@ -437,22 +437,38 @@ const PART_WORDS = {
   visual: [[2, 'lots of on-screen action'], [1, 'on-screen action'], [0.3, 'some movement'], [-Infinity, 'calm screen']],
 };
 const PART_KEYS = ['audio', 'peak', 'visual'];
+// Smart detection: five signals, each 0-1 (see app/src/core/smart.js and docs/DETECTION.md).
+const SMART_KEYS = ['audio', 'visual', 'semantic', 'emotion', 'context'];
+const SMART_WORDS = {
+  audio: [[0.6, 'very loud'], [0.3, 'loud'], [0.1, 'a bit louder than usual'], [-Infinity, 'not especially loud']],
+  visual: [[0.6, 'lots of on-screen action'], [0.3, 'on-screen action'], [0.1, 'some movement'], [-Infinity, 'calm screen']],
+  semantic: [[0.6, 'important things said'], [0.3, 'something worth hearing'], [0.1, 'some talk'], [-Infinity, 'little said']],
+  emotion: [[0.6, 'strong emotion'], [0.3, 'some emotion'], [0.1, 'a little emotion'], [-Infinity, 'calm voice']],
+  context: [[0.7, 'complete thought'], [0.4, 'mostly complete'], [0.2, 'partly complete'], [-Infinity, 'cut mid-thought']],
+};
+const REASON_TEXT = {
+  quiet: 'Quiet but meaningful', complete: 'Starts and ends on complete sentences', qa: 'A question and its answer',
+  punchline: 'A setup, then a reaction', story: 'Tells a story', laughter: 'Laughter', excitement: 'Excitement',
+  surprise: 'Surprise', frustration: 'Frustration', enthusiasm: 'Enthusiasm', event: 'Gaming moment', insight: 'Insight or fact',
+};
 function explainScore(c) {
   if (!c || !c.scoreParts) return null;
+  const smart = c.scoreEngine === 'smart';
+  const keys = smart ? SMART_KEYS : PART_KEYS, table = smart ? SMART_WORDS : PART_WORDS;
   const w = c.scoreWeights || { audio: 1, peak: 0.5, visual: 0.3 };
-  const contrib = PART_KEYS.map(k => Math.max(0, (Number(w[k]) || 0) * (Number(c.scoreParts[k]) || 0)));
+  const contrib = keys.map(k => Math.max(0, (Number(w[k]) || 0) * (Number(c.scoreParts[k]) || 0)));
   const total = contrib.reduce((a, b) => a + b, 0);
   const shares = contrib.map(v => total ? Math.round(v / total * 100) : 0);
-  const words = PART_KEYS.map(k => PART_WORDS[k].find(([min]) => (Number(c.scoreParts[k]) || 0) >= min)[1]);
-  return { words, shares };
+  const words = keys.map(k => table[k].find(([min]) => (Number(c.scoreParts[k]) || 0) >= min)[1]);
+  return { keys, words, shares, smart, reasons: smart && Array.isArray(c.scoreReasons) ? c.scoreReasons : [] };
 }
 function scoreBarHtml(c) {
   if (c.score == null) return '';
   const ex = explainScore(c);
   const width = clamp(c.score, 3, 100);
   if (!ex) return `<div class="scorebar" title="${esc(tr('Moment strength') + ' ' + c.score + '/100')}"><i style="width:${width}%"></i></div>`;
-  const tip = `${tr('Moment strength')} ${c.score}/100 · ` + PART_KEYS.map((k, i) => `${tr(ex.words[i])} ${ex.shares[i]}%`).join(' · ');
-  return `<div class="scorebar parts" title="${esc(tip)}"><span style="width:${width}%">${PART_KEYS.map((k, i) => ex.shares[i] ? `<i class="p-${k}" style="width:${ex.shares[i]}%"></i>` : '').join('')}</span></div>`;
+  const tip = `${tr('Moment strength')} ${c.score}/100 · ` + ex.keys.map((k, i) => `${tr(ex.words[i])} ${ex.shares[i]}%`).join(' · ');
+  return `<div class="scorebar parts" title="${esc(tip)}"><span style="width:${width}%">${ex.keys.map((k, i) => ex.shares[i] ? `<i class="p-${k}" style="width:${ex.shares[i]}%"></i>` : '').join('')}</span></div>`;
 }
 function renderWhy() {
   const c = selClip(), el = $('#whyMoment'); if (!el) return;
@@ -460,9 +476,11 @@ function renderWhy() {
   el.classList.toggle('hidden', !c);
   if (!c) return;
   if (!ex) { el.innerHTML = `<span class="muted small">${esc(tr(c.score != null ? 'This clip was detected before score details were kept. Run Auto-detect again to see why.' : 'Made by hand: no detection details.'))}</span>`; return; }
-  el.innerHTML = `<b>${esc(tr('Why this moment?'))}</b> <span class="muted small">${esc(tr('Moment strength'))} ${c.score}/100</span>
-    <div class="why-parts">${PART_KEYS.map((k, i) => `<span class="why-part"><i class="dot p-${k}"></i>${esc(tr(ex.words[i]))} <span class="muted">${ex.shares[i]}%</span></span>`).join('')}</div>`;
+  const reasons = ex.reasons.filter(r => REASON_TEXT[r.k]).map(r => `<li>${esc(tr(REASON_TEXT[r.k]))}${r.w ? ` <q translate="no">${esc(r.w)}</q>` : ''}${Number.isFinite(r.t) ? ` <button class="linkish mono" data-seek="${Number(r.t)}">${fmt(r.t, false)}</button>` : ''}</li>`).join('');
+  el.innerHTML = `<b>${esc(tr('Why this moment?'))}</b> <span class="muted small">${esc(tr('Moment strength'))} ${c.score}/100${ex.smart ? ' · ' + esc(tr('Smart detection')) : ''}</span>
+    <div class="why-parts">${ex.keys.map((k, i) => `<span class="why-part"><i class="dot p-${k}"></i>${esc(tr(ex.words[i]))} <span class="muted">${ex.shares[i]}%</span></span>`).join('')}</div>${reasons ? `<ul class="why-reasons">${reasons}</ul>` : ''}`;
 }
+document.addEventListener('click', e => { const b = e.target.closest('#whyMoment [data-seek]'); if (b) seek(Number(b.dataset.seek)); });
 function strengthOf(c) {
   if (c.score != null) return c.score;
   const L = S.loudNorm; if (!L) return -1;
@@ -603,7 +621,8 @@ function addClipAt(start, end) {
 }
 
 // auto-detect popover (defaults match the server's DETECT_DEFAULTS)
-const DETECT_DEFAULTS = { count: 12, length: 55, wAudio: 1, wPeak: 0.5, wVisual: 0.3, gap: 3 };
+const DETECT_DEFAULTS = { count: 12, length: 55, wAudio: 1, wPeak: 0.5, wVisual: 0.3, gap: 3, engine: 'fast', wA: 0.2, wV: 0.15, wS: 0.35, wE: 0.2, wC: 0.1 };
+const FAST_W = ['wAudio', 'wPeak', 'wVisual'], SMART_W = ['wA', 'wV', 'wS', 'wE', 'wC'];
 $('#btnDetect').addEventListener('click', () => {
   if (!S.p.analyzed) return toast('Analyze the video first. Auto-detect uses the loudness and action scan.', 'err');
   let pop = $('#detectPop');
@@ -612,23 +631,45 @@ $('#btnDetect').addEventListener('click', () => {
   pop.id = 'detectPop';
   pop.className = 'caption-box';
   const d = { ...DETECT_DEFAULTS, ...(S.p.detect || {}) };
-  const slider = (id, key, label, hint) => `<label class="w-row" title="${esc(tr(hint))}"><span><i class="dot p-${key}"></i>${esc(tr(label))} <output id="${id}Out">${Number(d[id]).toFixed(1)}</output></span><input id="${id}" type="range" min="0" max="3" step="0.1" value="${d[id]}"></label>`;
+  const slider = (id, key, label, hint, max = 3, step = 0.1) => `<label class="w-row" title="${esc(tr(hint))}"><span><i class="dot p-${key}"></i>${esc(tr(label))} <output id="${id}Out">${Number(d[id]).toFixed(max === 1 ? 2 : 1)}</output></span><input id="${id}" type="range" min="0" max="${max}" step="${step}" value="${Number(d[id])}"></label>`;
+  const hasTranscript = !!(S.transcript && S.transcript.words && S.transcript.words.length);
   pop.innerHTML = `<div class="grid2"><label>How many<input id="dCount" type="number" min="1" max="40" value="${d.count}"></label>
     <label>Seconds each<input id="dLen" type="number" min="10" max="60" value="${d.length}"></label></div>
-    <p class="muted small">Finds the loudest, most action-packed moments: reactions, hype and big plays.</p>
+    <div class="engine-pick" role="radiogroup">
+      <label><input type="radio" name="dEngine" value="fast"${d.engine !== 'smart' ? ' checked' : ''}> <b>Fast</b> <span class="muted small">sound and action</span></label>
+      <label><input type="radio" name="dEngine" value="smart"${d.engine === 'smart' ? ' checked' : ''}> <b>Smart</b> <span class="muted small">also what is said</span></label>
+    </div>
+    <p class="muted small" data-for="fast">Finds the loudest, most action-packed moments: reactions, hype and big plays.</p>
+    <p class="muted small" data-for="smart">Also listens to what is said: jokes and laughter, gaming moments, explanations, questions and answers, even when it is quiet. Clips start and end on complete sentences.</p>
+    ${hasTranscript ? '' : '<p class="small warn-text" data-for="smart">Smart detection needs the transcript of the whole stream. <button class="btn small ghost" data-transcribe>Transcribe whole stream</button></p>'}
     <details class="detect-adv"><summary>Advanced: what counts as a great moment</summary>
+      <div data-for="fast">
       ${slider('wAudio', 'audio', 'Loudness', 'Sustained loud moments: excitement, shouting, music')}
       ${slider('wPeak', 'peak', 'Sudden spikes', 'Short bursts: a scream, an explosion, a big reaction')}
       ${slider('wVisual', 'visual', 'On-screen action', 'Lots of change on screen: fights, fast moves, scene changes')}
+      </div>
+      <div data-for="smart">
+      ${slider('wA', 'audio', 'Audio excitement', 'Loud and sudden sounds', 1, 0.05)}
+      ${slider('wV', 'visual', 'Visual activity', 'Change on screen', 1, 0.05)}
+      ${slider('wS', 'semantic', 'What is said', 'Gaming events, explanations and facts, questions, your words to expect', 1, 0.05)}
+      ${slider('wE', 'emotion', 'Emotion', 'Laughter, excitement, surprise, frustration, enthusiasm', 1, 0.05)}
+      ${slider('wC', 'context', 'Complete moment', 'Whole sentences, a question with its answer, a setup with its punchline', 1, 0.05)}
+      <p class="muted small">Starting points, not proven best values: adjust them to your streams.</p>
+      </div>
       <label class="w-row">Minimum spacing between moments (s)<input id="dGap" type="number" min="0" max="600" value="${d.gap}"></label>
       <div class="row gap"><button class="btn small ghost" data-reset>Reset to defaults</button><span class="muted small">0 turns a signal off.</span></div>
     </details>
     <div class="row gap"><button class="btn small primary" data-mode="add">Add new moments</button><button class="btn small danger" data-mode="replace">Replace all clips</button></div>`;
-  pop.addEventListener('input', e => { const o = pop.querySelector('#' + e.target.id + 'Out'); if (o) o.textContent = Number(e.target.value).toFixed(1); });
+  pop.addEventListener('input', e => { const o = pop.querySelector('#' + e.target.id + 'Out'); if (o) o.textContent = Number(e.target.value).toFixed(SMART_W.includes(e.target.id) ? 2 : 1); });
+  const engine = () => pop.querySelector('[name=dEngine]:checked').value;
+  const showEngine = () => pop.querySelectorAll('[data-for]').forEach(x => x.classList.toggle('hidden', x.dataset.for !== engine()));
+  pop.addEventListener('change', e => { if (e.target.name === 'dEngine') showEngine(); });
+  showEngine();
   $('.select-row').before(pop);
   pop.addEventListener('click', async e => {
+    if (e.target.closest('[data-transcribe]')) { pop.remove(); $('#btnTranscribeFull').click(); return; }
     if (e.target.closest('[data-reset]')) {
-      for (const k of ['wAudio', 'wPeak', 'wVisual']) { pop.querySelector('#' + k).value = DETECT_DEFAULTS[k]; pop.querySelector('#' + k + 'Out').textContent = DETECT_DEFAULTS[k].toFixed(1); }
+      for (const k of FAST_W.concat(SMART_W)) { pop.querySelector('#' + k).value = DETECT_DEFAULTS[k]; pop.querySelector('#' + k + 'Out').textContent = DETECT_DEFAULTS[k].toFixed(SMART_W.includes(k) ? 2 : 1); }
       pop.querySelector('#dGap').value = DETECT_DEFAULTS.gap;
       return;
     }
@@ -639,7 +680,8 @@ $('#btnDetect').addEventListener('click', () => {
     try {
       pushAction(mode === 'replace' ? 'auto-detect (replace)' : 'auto-detect');
       S.p = await api('/api/detect', { method: 'POST', body: { slug: slug(), count: +$('#dCount').value, length: +$('#dLen').value,
-        wAudio: +$('#wAudio').value, wPeak: +$('#wPeak').value, wVisual: +$('#wVisual').value, gap: +$('#dGap').value, mode } });
+        wAudio: +$('#wAudio').value, wPeak: +$('#wPeak').value, wVisual: +$('#wVisual').value, gap: +$('#dGap').value, mode,
+        engine: engine(), ...Object.fromEntries(SMART_W.map(k => [k, +$('#' + k).value])) } });
       S.sel = S.p.clips[0]?.id || null;
       rebaseHistory();
       pop.remove(); renderAll(); toast('Moments updated. Ctrl+Z undoes this.', 'ok');

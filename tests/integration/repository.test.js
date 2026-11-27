@@ -21,7 +21,7 @@ test('opening a new video creates its project with defaults', async () => {
   const p = await repo.open('my stream.mkv');
   assert.equal(p.slug, 'my_stream');
   assert.equal(p.style.titleFont, 'Impact');
-  assert.deepEqual(p.detect, { count: 12, length: 55, wAudio: 1, wPeak: 0.5, wVisual: 0.3, gap: 3 });
+  assert.deepEqual(p.detect, { count: 12, length: 55, wAudio: 1, wPeak: 0.5, wVisual: 0.3, gap: 3, engine: 'fast', wA: 0.2, wV: 0.15, wS: 0.35, wE: 0.2, wC: 0.1 });
   assert.equal(p.hasProxy, false);
   await assert.rejects(repo.open('missing.mp4'), e => e.code === 404);
 });

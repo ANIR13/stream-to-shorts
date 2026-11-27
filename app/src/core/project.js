@@ -1,6 +1,7 @@
 'use strict';
 // Project model: defaults, clip numbering, and merging a save from the browser. Pure functions.
 const { DETECT_DEFAULTS } = require('./detection');
+const { SMART_DEFAULTS } = require('./smart');
 const { httpError } = require('../shared/errors');
 const Timing = require('../../public/timing.js');
 const { isSafeFileName, isSafeId, VIDEO_EXT } = require('../shared/validate');
@@ -29,7 +30,7 @@ function defaultProject(file, meta, slug) {
     style: { ...STYLE_DEFAULTS },
     whisper: whisperDefaults(),
     publish: { hashtags: '#shorts' },
-    detect: { ...DETECT_DEFAULTS },
+    detect: { ...DETECT_DEFAULTS, ...SMART_DEFAULTS },
     clips: [],
   };
 }
@@ -113,7 +114,11 @@ function sanitizeProject(p) {
     if (w.language != null && !(typeof w.language === 'string' && /^(auto|[a-z]{2,3})$/.test(w.language))) w.language = 'auto';
   }
   // detection settings are shown in the page: numbers only
-  if (p.detect && typeof p.detect === 'object') for (const k of Object.keys(DETECT_DEFAULTS)) if (p.detect[k] != null && !num(p.detect[k], -1e6, 1e6)) p.detect[k] = DETECT_DEFAULTS[k];
+  if (p.detect && typeof p.detect === 'object') {
+    for (const k of Object.keys(DETECT_DEFAULTS)) if (p.detect[k] != null && !num(p.detect[k], -1e6, 1e6)) p.detect[k] = DETECT_DEFAULTS[k];
+    for (const k of ['wA', 'wV', 'wS', 'wE', 'wC']) if (p.detect[k] != null && !num(p.detect[k], 0, 1)) p.detect[k] = SMART_DEFAULTS[k];
+    if (p.detect.engine != null && p.detect.engine !== 'fast' && p.detect.engine !== 'smart') p.detect.engine = 'fast';
+  }
   // layout boxes are numbers
   if (p.layout && typeof p.layout === 'object') {
     for (const box of [p.layout.cam, p.layout.game]) if (box && typeof box === 'object') for (const k of ['x', 'y', 'w', 'h']) if (!num(box[k], -1e6, 1e6)) box[k] = 0;
@@ -124,6 +129,12 @@ function sanitizeProject(p) {
     // ids become folder and file names; outputs are files in output/<video>/ that a new render replaces
     if (!isSafeId(c.id)) c.id = 'x' + fnv(String(c.id));
     if (c.output != null && !isSafeFileName(c.output, new Set(['.mp4']))) { delete c.output; delete c.renderSig; delete c.renderedAt; }
+    // detection details are shown in the page: known reason kinds, numbers, short plain words
+    if (c.scoreReasons != null) {
+      c.scoreReasons = Array.isArray(c.scoreReasons) ? c.scoreReasons.filter(r => r && typeof r.k === 'string' && /^[a-z]{2,12}$/.test(r.k)).slice(0, 8)
+        .map(r => ({ k: r.k, ...(typeof r.w === 'string' ? { w: r.w.replace(/[<>"&]/g, '').slice(0, 30) } : {}), ...(num(r.t, 0, 1e7) ? { t: r.t } : {}) })) : undefined;
+    }
+    if (c.scoreEngine != null && c.scoreEngine !== 'smart') delete c.scoreEngine;
     if (typeof c.start !== 'number' || typeof c.end !== 'number' || !(c.start < c.end) || c.start < 0 || (meta.duration && c.end > meta.duration)) {
       const t = Timing.normalize(c, meta.duration);
       c.start = t.start; c.end = t.end;
