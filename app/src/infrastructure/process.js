@@ -12,7 +12,8 @@ function onPath(name) {
 
 // Open a folder or web page with the desktop's default program.
 function openWith(target) {
-  const [cmd, args] = IS_WIN ? (/^https?:/.test(target) ? ['cmd', ['/c', 'start', '', target]] : ['explorer.exe', [target]])
+  // No shell or cmd.exe: the target is passed as a single argument and never interpreted as a command.
+  const [cmd, args] = IS_WIN ? ['explorer.exe', [target]]
     : process.platform === 'darwin' ? ['open', [target]] : ['xdg-open', [target]];
   try { const c = spawn(cmd, args, { detached: true, stdio: 'ignore' }); c.on('error', () => console.log('  Open this yourself: ' + target)); c.unref(); }
   catch { console.log('  Open this yourself: ' + target); }

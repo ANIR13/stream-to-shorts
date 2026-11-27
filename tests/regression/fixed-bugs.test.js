@@ -109,3 +109,40 @@ test('speech recognition stalled on Linux machines with many cores', { skip: pro
   assert.equal(env.env.OMP_WAIT_POLICY, 'PASSIVE');
   assert.ok(env.WHISPER_THREADS >= 2 && env.WHISPER_THREADS <= 8);
 });
+
+test('any website open in the browser could send commands to the app', async () => {
+  // Cause: listening on 127.0.0.1 was taken as "only the app can call it"; browsers let other sites
+  // send requests to localhost. Requests must now come from the app's own page (Host, Origin, Sec-Fetch-Site).
+  const http = require('http');
+  const { createApp } = require(path.join(__dirname, '..', '..', 'app', 'server'));
+  const a = createApp({ root: tmpApp().root, log: quiet });
+  const server = await a.listen(0, { open: false });
+  const port = server.address().port;
+  const status = headers => new Promise((resolve, reject) => {
+    const r = http.request({ host: '127.0.0.1', port, method: 'POST', path: '/api/jobs/cancel', headers: { Host: `127.0.0.1:${port}`, 'Content-Type': 'text/plain', ...headers } }, res => { res.resume(); resolve(res.statusCode); });
+    r.on('error', reject); r.end('{"all":true}');
+  });
+  try {
+    assert.equal(await status({ Origin: 'https://evil.example', 'Sec-Fetch-Site': 'cross-site' }), 403);
+    assert.equal(await status({ Origin: `http://127.0.0.1:${port}`, 'Sec-Fetch-Site': 'same-origin' }), 200);
+  } finally { server.close(); }
+});
+
+test('a project file could make a render delete a file outside the output folder', async () => {
+  // Cause: the clip's recorded output name was used as a path when the previous short was replaced.
+  const dirs = tmpApp();
+  fs.writeFileSync(path.join(dirs.sourceDir, 'v.mp4'), '');
+  fs.mkdirSync(path.join(dirs.projectsDir, 'v'));
+  fs.writeFileSync(path.join(dirs.projectsDir, 'v', 'project.json'), JSON.stringify({ version: 2, video: 'v.mp4', slug: 'v', meta: { duration: 60, width: 1920, height: 1080 }, clips: [{ id: 'a', num: 1, start: 0, end: 10, captionsOn: false, output: '../../victim.txt' }] }));
+  fs.writeFileSync(path.join(dirs.root, 'victim.txt'), 'keep');
+  const repo = createProjectRepository({ ...dirs, probe: async () => ({}) });
+  await createRenderingService({ repo, ffmpeg: fakeFfmpeg(), transcription: { available: false }, outputDir: dirs.outputDir, sourceDir: dirs.sourceDir, log: quiet }).render({ id: 1 }, 'v', 'a');
+  assert.equal(fs.readFileSync(path.join(dirs.root, 'victim.txt'), 'utf8'), 'keep');
+});
+
+test('on Windows the app crashed at startup when setup had not been run yet', () => {
+  // Cause: the font configuration was written into tools/ before that folder existed.
+  const root = tmpApp().root;
+  createEnvironment(root, { lookup: () => null }).prepare();
+  assert.ok(fs.existsSync(path.join(root, 'tools')));
+});

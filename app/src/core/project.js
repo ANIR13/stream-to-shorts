@@ -3,6 +3,7 @@
 const { DETECT_DEFAULTS } = require('./detection');
 const { httpError } = require('../shared/errors');
 const Timing = require('../../public/timing.js');
+const { isSafeFileName, isSafeId, VIDEO_EXT } = require('../shared/validate');
 
 const STYLE_DEFAULTS = {
   titleFont: 'Impact', titleSize: 86, titleColor1: '#FFFFFF', titleColor2: '#FFD400',
@@ -80,4 +81,55 @@ function mergeClientSave(p, incoming, force) {
   return p;
 }
 
-module.exports = { STYLE_DEFAULTS, whisperDefaults, defaultProject, ensureNums, clipName, SERVER_FIELDS, mergeClientSave };
+// ---- untrusted input ----
+// A project file may come from another computer, and browser saves are only as trustworthy as the
+// page. Before anything uses a project, values that reach file paths, programs or the subtitle file
+// are checked: harmful ones are refused (the video name) or replaced by safe defaults. Valid values
+// are never changed, so a normal project is untouched.
+const fnv = s => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(36); };
+const STYLE_NUMBERS = { titleSize: [10, 300], captionSize: [10, 300], fps: [10, 60], crf: [0, 51], captionPos: [0, 100], wordsPerChunk: [1, 12] };
+const FONT_KEYS = ['titleFont', 'captionFont'];
+const num = (v, lo, hi) => (typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi);
+
+function sanitizeProject(p) {
+  if (!p || typeof p !== 'object') throw httpError(422, 'This project file is not valid.');
+  if (!isSafeFileName(p.video, VIDEO_EXT)) throw httpError(422, 'This project file is not valid: its video name points outside the source folder.');
+  const meta = p.meta = p.meta && typeof p.meta === 'object' ? p.meta : {};
+  for (const k of ['duration', 'width', 'height', 'fps']) if (meta[k] != null && !num(meta[k], 0, 1e7)) meta[k] = Number(meta[k]) > 0 ? Number(meta[k]) : 0;
+  // missing sections get their defaults (a hand-made or truncated file)
+  if (!p.style || typeof p.style !== 'object') p.style = { ...STYLE_DEFAULTS };
+  if (!p.whisper || typeof p.whisper !== 'object') p.whisper = whisperDefaults();
+  if (!p.layout || typeof p.layout !== 'object') p.layout = defaultProject(p.video, { width: Number(meta.width) || 1920, height: Number(meta.height) || 1080 }, p.slug).layout;
+  // style values written into the subtitle file and the ffmpeg filter graph
+  const st = p.style;
+  if (st && typeof st === 'object') {
+    for (const k of FONT_KEYS) if (st[k] != null && (typeof st[k] !== 'string' || /[,\r\n{}\\]/.test(st[k]) || st[k].length > 64)) st[k] = STYLE_DEFAULTS[k];
+    for (const [k, [lo, hi]] of Object.entries(STYLE_NUMBERS)) if (st[k] != null && !num(st[k], lo, hi)) st[k] = STYLE_DEFAULTS[k];
+  }
+  // whisper settings become program arguments and a model path
+  const w = p.whisper;
+  if (w && typeof w === 'object') {
+    if (w.model != null && !(typeof w.model === 'string' && /^ggml-[A-Za-z0-9._-]+\.bin$/.test(w.model))) w.model = whisperDefaults().model;
+    if (w.language != null && !(typeof w.language === 'string' && /^(auto|[a-z]{2,3})$/.test(w.language))) w.language = 'auto';
+  }
+  // detection settings are shown in the page: numbers only
+  if (p.detect && typeof p.detect === 'object') for (const k of Object.keys(DETECT_DEFAULTS)) if (p.detect[k] != null && !num(p.detect[k], -1e6, 1e6)) p.detect[k] = DETECT_DEFAULTS[k];
+  // layout boxes are numbers
+  if (p.layout && typeof p.layout === 'object') {
+    for (const box of [p.layout.cam, p.layout.game]) if (box && typeof box === 'object') for (const k of ['x', 'y', 'w', 'h']) if (!num(box[k], -1e6, 1e6)) box[k] = 0;
+  }
+  if (!Array.isArray(p.clips)) p.clips = [];
+  p.clips = p.clips.filter(c => c && typeof c === 'object');
+  for (const c of p.clips) {
+    // ids become folder and file names; outputs are files in output/<video>/ that a new render replaces
+    if (!isSafeId(c.id)) c.id = 'x' + fnv(String(c.id));
+    if (c.output != null && !isSafeFileName(c.output, new Set(['.mp4']))) { delete c.output; delete c.renderSig; delete c.renderedAt; }
+    if (typeof c.start !== 'number' || typeof c.end !== 'number' || !(c.start < c.end) || c.start < 0 || (meta.duration && c.end > meta.duration)) {
+      const t = Timing.normalize(c, meta.duration);
+      c.start = t.start; c.end = t.end;
+    }
+  }
+  return p;
+}
+
+module.exports = { sanitizeProject, STYLE_DEFAULTS, whisperDefaults, defaultProject, ensureNums, clipName, SERVER_FIELDS, mergeClientSave };

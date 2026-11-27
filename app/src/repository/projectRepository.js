@@ -5,7 +5,8 @@ const fsp = require('fs').promises;
 const path = require('path');
 const { exists, readJSON, writeJSON, slugify } = require('../shared/fsutil');
 const { httpError } = require('../shared/errors');
-const { defaultProject, ensureNums, mergeClientSave } = require('../core/project');
+const { defaultProject, ensureNums, mergeClientSave, sanitizeProject } = require('../core/project');
+const { safeFileName, VIDEO_EXT } = require('../shared/validate');
 const { SCHEMA_VERSION, schemaVersionOf, migrate, needsMigration } = require('../core/schema');
 
 // projectsDir: projects folder; sourceDir: recordings folder; probe(file) -> video facts (for new projects);
@@ -29,6 +30,7 @@ function createProjectRepository({ projectsDir, sourceDir, probe, outputDir = nu
     const p = await readJSON(projFile(slug), null);
     if (!p) throw httpError(404, 'Project not found');
     migrate(p);
+    sanitizeProject(p); // project files are untrusted: see core/project.js
     p.hasProxy = await exists(fileIn(slug, 'proxy.mp4'));
     // A short deleted outside the app (Explorer, file manager) is flagged, not forgotten: the clip
     // keeps its render record and shows as rendered again if the file comes back.
@@ -67,6 +69,7 @@ function createProjectRepository({ projectsDir, sourceDir, probe, outputDir = nu
       const p = await load(slug);
       await mutate(p);
       ensureNums(p);
+      sanitizeProject(p);
       p.updated = Date.now();
       delete p.hasProxy; // computed on every load, never stored
       for (const c of p.clips) delete c.outputMissing;
@@ -77,6 +80,7 @@ function createProjectRepository({ projectsDir, sourceDir, probe, outputDir = nu
 
   // Open the project of a video file, creating it (after probing the video) the first time.
   async function open(file) {
+    safeFileName(file, VIDEO_EXT, 'Video name');
     const slug = await slugFor(file);
     if (await exists(projFile(slug))) {
       const raw = await readJSON(projFile(slug), null);

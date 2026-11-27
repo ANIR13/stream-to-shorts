@@ -40,10 +40,11 @@ The server is split into layers; **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)*
 2. **Fully local.** The app must never send anything over the internet, collect data or require an account. The server listens on `127.0.0.1` only.
 3. **Windows and Linux.** Use `path.join`, avoid shell-specific commands, and keep platform-specific code in `app/src/infrastructure/` (see `process.js`, `environment.js`, `trash.js`).
 4. **Two languages.** Every new text shown to users needs its French version in `app/public/i18n.js` (an exact entry, or a pattern for texts with numbers or names). Write the English text in the code; texts drawn on canvases go through `tr()`.
-5. **Never lose user work.** Anything that deletes goes to the Recycle Bin / trash (`trash.recycle()`), and edits should stay undoable.
-6. **Version project files.** If you add, rename or remove anything stored in `project.json`, bump the format and add a migration in `app/src/core/schema.js` (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#project-file-versions)).
-7. **Keep the layers.** Logic goes in `app/src/core` (pure, tested), programs and the operating system only in `app/src/infrastructure`, and project files only through the repository.
-8. **Never commit media or tools.** Recordings, rendered shorts, project data, ffmpeg, whisper and models are ignored by `.gitignore`; keep it that way.
+5. **Treat input as untrusted.** Names from the browser, imports and project files go through `app/src/shared/validate.js` before they reach a path; new project fields that reach files, programs or the subtitle file need a check in `sanitizeProject`. Start programs with argument arrays, never a shell.
+6. **Never lose user work.** Anything that deletes goes to the Recycle Bin / trash (`trash.recycle()`), and edits should stay undoable.
+7. **Version project files.** If you add, rename or remove anything stored in `project.json`, bump the format and add a migration in `app/src/core/schema.js` (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#project-file-versions)).
+8. **Keep the layers.** Logic goes in `app/src/core` (pure, tested), programs and the operating system only in `app/src/infrastructure`, and project files only through the repository.
+9. **Never commit media or tools.** Recordings, rendered shorts, project data, ffmpeg, whisper and models are ignored by `.gitignore`; keep it that way.
 
 ## Before opening a pull request
 
