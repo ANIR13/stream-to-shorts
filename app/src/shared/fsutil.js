@@ -16,15 +16,6 @@ async function writeJSON(p, obj) {
   await fsp.rename(tmp, p);
 }
 
-// Fill missing keys (recursively for plain objects) without touching existing values.
-function deepDefaults(target, defs) {
-  for (const [k, v] of Object.entries(defs)) {
-    if (target[k] === undefined) target[k] = v;
-    else if (v && typeof v === 'object' && !Array.isArray(v) && typeof target[k] === 'object') deepDefaults(target[k], v);
-  }
-  return target;
-}
-
 // True when p is strictly inside base (protects against "../" paths).
 const inside = (base, p) => { const r = path.relative(base, p); return !!r && !r.startsWith('..') && !path.isAbsolute(r); };
 
@@ -32,4 +23,4 @@ const slugify = s => String(s).replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]+/
 
 const round1 = v => Math.round(v * 10) / 10;
 
-module.exports = { exists, readJSON, writeJSON, deepDefaults, inside, slugify, round1 };
+module.exports = { exists, readJSON, writeJSON, inside, slugify, round1 };

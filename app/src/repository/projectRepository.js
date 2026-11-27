@@ -1,10 +1,12 @@
 'use strict';
 // Project repository: where projects live on disk (projects/<slug>/project.json and its side files).
 // All project writes go through update(), which serializes them per project.
+const fsp = require('fs').promises;
 const path = require('path');
-const { exists, readJSON, writeJSON, deepDefaults, slugify } = require('../shared/fsutil');
+const { exists, readJSON, writeJSON, slugify } = require('../shared/fsutil');
 const { httpError } = require('../shared/errors');
-const { loadDefaults, defaultProject, ensureNums, mergeClientSave } = require('../core/project');
+const { defaultProject, ensureNums, mergeClientSave } = require('../core/project');
+const { SCHEMA_VERSION, schemaVersionOf, migrate, needsMigration } = require('../core/schema');
 
 // projectsDir: projects folder; sourceDir: recordings folder; probe(file) -> video facts (for new projects).
 function createProjectRepository({ projectsDir, sourceDir, probe }) {
@@ -20,12 +22,21 @@ function createProjectRepository({ projectsDir, sourceDir, probe }) {
     return p;
   }
 
+  // Projects are always handed out in the current format (older files are upgraded in memory;
+  // open() writes the upgrade). Files from a newer app are refused, never overwritten.
   async function load(slug) {
     const p = await readJSON(projFile(slug), null);
     if (!p) throw httpError(404, 'Project not found');
-    deepDefaults(p, loadDefaults());
+    migrate(p);
     p.hasProxy = await exists(fileIn(slug, 'proxy.mp4'));
     return p;
+  }
+
+  // Upgrade an older project file on disk, keeping the original as project.v<N>.backup.json.
+  async function upgrade(slug, raw) {
+    const backup = fileIn(slug, `project.v${schemaVersionOf(raw)}.backup.json`);
+    if (!(await exists(backup))) await fsp.copyFile(projFile(slug), backup);
+    return update(slug, () => {});
   }
 
   // Every video file gets its own project folder. Different files whose names clean up to the same
@@ -57,13 +68,15 @@ function createProjectRepository({ projectsDir, sourceDir, probe }) {
   async function open(file) {
     const slug = await slugFor(file);
     if (await exists(projFile(slug))) {
+      const raw = await readJSON(projFile(slug), null);
+      if (raw && needsMigration(raw)) return upgrade(slug, raw);
       const p = await load(slug);
       return p.clips.some(c => !c.num) ? update(slug, () => {}) : p;
     }
     const src = path.join(sourceDir, file);
     if (!(await exists(src))) throw httpError(404, 'Video not found in source folder');
     const meta = await probe(src);
-    await writeJSON(projFile(slug), defaultProject(file, meta, slug));
+    await writeJSON(projFile(slug), { ...defaultProject(file, meta, slug), version: SCHEMA_VERSION });
     return load(slug);
   }
 
