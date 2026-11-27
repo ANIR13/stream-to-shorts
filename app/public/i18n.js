@@ -577,6 +577,8 @@
     [/^(\d+) clips? deleted\. (.+)$/, (m, n, r) => `${n} clip(s) supprimé(s). ${t(r)}`],
     [/^(\d+) upload texts? updated$/, '$1 texte(s) de publication mis à jour'],
     [/^Trimmed to ([\d.]+) s$/, 'Coupé à $1 s'],
+    [/^This project was saved by a newer version of Stream to Shorts \(project format (\d+)\)\. Update the app to open it\.$/, 'Ce projet a été enregistré par une version plus récente de Stream to Shorts (format de projet $1). Mettez l\'app à jour pour l\'ouvrir.'],
+    [/^This project comes from a newer version of the app\. Update the app on this computer to open it\.$/, 'Ce projet vient d\'une version plus récente de l\'app. Mettez l\'app à jour sur cet ordinateur pour l\'ouvrir.'],
     [/^Building the (\d+)p preview… you can keep working meanwhile\.$/, 'Création de l\'aperçu $1p… vous pouvez continuer à travailler.'],
     [/^Preview (\d+)p$/, 'Aperçu $1p'],
     [/^(\d+) of these clips have no title\.$/, '$1 de ces clips n\'ont pas de titre.'],

@@ -15,13 +15,10 @@ const STYLE_DEFAULTS = {
 // prompt: hint words for Whisper; fixes: [{from, to}] word corrections applied to every transcription.
 function whisperDefaults() { return { model: 'ggml-small.bin', language: 'auto', translate: false, prompt: '', fixes: [] }; }
 
-// Defaults filled into every project when it is loaded (older projects get the new keys).
-const loadDefaults = () => ({ style: STYLE_DEFAULTS, whisper: whisperDefaults(), publish: { hashtags: '#shorts' }, setup: {}, detect: { ...DETECT_DEFAULTS }, clips: [] });
-
 function defaultProject(file, meta, slug) {
   const cw = Math.round(meta.width * 0.27), ch = Math.round(cw * 0.75);
   return {
-    version: 1, video: file, slug, meta, analyzed: false,
+    video: file, slug, meta, analyzed: false, // "version" (file format) is added by the repository, see core/schema.js
     layout: {
       mode: 'gameplay', camOnTop: true,
       cam: { x: meta.width - cw, y: meta.height - ch, w: cw, h: ch },
@@ -79,4 +76,4 @@ function mergeClientSave(p, incoming, force) {
   return p;
 }
 
-module.exports = { STYLE_DEFAULTS, whisperDefaults, loadDefaults, defaultProject, ensureNums, clipName, SERVER_FIELDS, mergeClientSave };
+module.exports = { STYLE_DEFAULTS, whisperDefaults, defaultProject, ensureNums, clipName, SERVER_FIELDS, mergeClientSave };

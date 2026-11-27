@@ -34,7 +34,7 @@ flowchart TD
 | `app/server.js` | Entry point and HTTP | Builds the application (`createApp`), maps each API route to a service, serves static and media files. |
 | `app/src/shared/` | Shared | `errors.js` (HTTP errors, plain-language task errors), `fsutil.js` (JSON files, paths), `stats.js` (moving average, robust z-score). |
 | `app/src/infrastructure/` | Infrastructure | `process.js` (running programs, opening folders), `environment.js` (folders, tools, environment), `ffmpeg.js` (**FFmpeg adapter**: the only place that knows how ffmpeg/ffprobe are called), `trash.js` (Recycle Bin / desktop trash). |
-| `app/src/core/` | Core logic, no I/O | `project.js` (defaults, clip numbers, merging browser saves), `detection.js` (highlight scoring), `captions.js` (word fixes, hint-word echo, whisper parsing, caption lines), `render.js` (subtitle file and filter graph), `upload.js` (upload texts). |
+| `app/src/core/` | Core logic, no I/O | `project.js` (defaults, clip numbers, merging browser saves), `schema.js` (project file versions and migrations), `detection.js` (highlight scoring), `captions.js` (word fixes, hint-word echo, whisper parsing, caption lines), `render.js` (subtitle file and filter graph), `upload.js` (upload texts). |
 | `app/src/repository/` | Persistence | `projectRepository.js`: projects on disk, per-project locks, revisions. |
 | `app/src/services/` | Application services | `detectionService.js` (analysis, preview copy, suggested clips), `transcriptionService.js` (whisper.cpp, captions), `renderingService.js` (shorts and quick drafts), `exportService.js` (output files, upload texts), `presetService.js`, `jobQueue.js` (one task at a time, cancel, retry, resume after restart). |
 | `app/public/` | Browser | `app.js` (interface), `layout.js` (9:16 layout maths shared with the renderer), `i18n.js` (French), `index.html`, `styles.css`. |
@@ -48,6 +48,21 @@ flowchart TD
 - **The HTTP layer** only parses requests, calls services and formats responses. API paths, inputs, outputs and status codes are part of the contract with the browser: keep them compatible.
 - **All project writes** go through `repo.update(slug, mutate)`, which serializes writes per project.
 
+## Project file versions
+
+Each `projects/<video>/project.json` has a `version` field: the **project file format**. `app/src/core/schema.js` defines the current format (`SCHEMA_VERSION`) and one migration per step (`MIGRATIONS[n]` upgrades format `n` to `n + 1`).
+
+- **Loading** upgrades older projects in memory, so every service sees the current format.
+- **Opening a video** writes the upgrade once and keeps the original file as `project.v<N>.backup.json`.
+- **A project from a newer app** (for example made on another computer with a newer version) is refused with a clear message and never overwritten, so an older app can't destroy data it doesn't understand.
+
+| Format | What changed |
+|---|---|
+| 1 | First releases (projects without a `version` field count as 1). |
+| 2 | Settings added since then are written into the file: word fixes and hint words, upload hashtags, setup checklist, detection weights and spacing; clips get permanent numbers. |
+
+**To change what `project.json` contains:** bump `SCHEMA_VERSION`, add `MIGRATIONS[old]` that upgrades a project in place, add a test in `tests/schema.test.js`, and add a row to the table above. Never edit a migration that was released.
+
 ## Tests
 
 ```bash
@@ -57,6 +72,7 @@ npm test          # or: node --test tests/
 - `tests/core.test.js` compares the core with `tests/fixtures/baseline.json`, outputs recorded from the code before the modular refactor on synthetic data. A change that alters what a rendered short looks like, or which moments are detected by default, fails here on purpose.
 - `tests/infrastructure.test.js` tests the FFmpeg adapter with a fake process runner.
 - `tests/repository.test.js` and `tests/services.test.js` run on temporary folders with fake ffmpeg / whisper.
+- `tests/schema.test.js` covers project file versions: every migration, upgrades with backup, refusing newer files.
 
 If you change the output **on purpose**, regenerate the baseline (`node tests/fixtures/make-baseline.js`) and explain the change in your pull request.
 
