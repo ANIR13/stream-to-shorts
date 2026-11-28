@@ -89,6 +89,12 @@ function buildFilter(p, L, dur, x = {}) {
   let vIn = '[0:v]', aIn = '[0:a]';
   const hasAudio = !!p.meta.hasAudio;
   let normalized = false;
+  // several audio tracks (game + microphone): every track is heard
+  const nA = Math.min(8, Number(p.meta.audioStreams) || 1);
+  if (hasAudio && nA > 1 && !x.muteStream) {
+    f.push(`${Array.from({ length: nA }, (_, i) => `[0:a:${i}]`).join('')}amix=inputs=${nA}:duration=longest:normalize=0[amix]`);
+    aIn = '[amix]';
+  }
   if (x.cuts && x.cuts.length > 1) {
     // keep only these parts of the input and join them (jump cuts). The sound is normalized before it
     // is cut: loudnorm after the join misplaces the first part's audio when video is in the same graph
@@ -96,7 +102,7 @@ function buildFilter(p, L, dur, x = {}) {
     const parts = [];
     const useAudio = hasAudio && !x.muteStream;   // a hidden stream sound is not cut or joined at all
     if (useAudio) {
-      f.push(`[0:a]${s.loudnorm ? 'loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000,' : ''}asplit=${x.cuts.length}${x.cuts.map((c, i) => `[la${i}]`).join('')}`);
+      f.push(`${aIn}${s.loudnorm ? 'loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000,' : ''}asplit=${x.cuts.length}${x.cuts.map((c, i) => `[la${i}]`).join('')}`);
       normalized = !!s.loudnorm;
     }
     x.cuts.forEach((c, i) => {
@@ -140,7 +146,7 @@ function buildFilter(p, L, dur, x = {}) {
   const m = x.music;
   const out = m ? 'st' : 'a';   // with music, the stream's sound is mixed below
   if (hasAudio && !x.muteStream) {
-    f.push(`${aIn}${s.loudnorm && !normalized ? 'loudnorm=I=-14:TP=-1.5:LRA=11,' : ''}aresample=48000,afade=t=in:st=0:d=0.3,afade=t=out:st=${fo}:d=0.5[${out}]`);
+    f.push(`${aIn}${s.loudnorm && !normalized ? 'loudnorm=I=-14:TP=-1.5:LRA=11,' : ''}aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,afade=t=in:st=0:d=0.3,afade=t=out:st=${fo}:d=0.5[${out}]`);
   } else {
     f.push(`anullsrc=r=48000:cl=stereo,atrim=0:${dur}[${out}]`);
   }

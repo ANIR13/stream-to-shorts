@@ -20,7 +20,8 @@ const metadataArgs = u => ['-metadata', 'title=' + clean(u.title), '-metadata', 
 const clean = t => String(t || '').replace(/[\x00-\x1f]+/g, ' ').trim();
 
 // transcription: the transcription service (captions are generated before rendering when missing).
-function createRenderingService({ repo, ffmpeg, transcription, outputDir, sourceDir, log = console }) {
+// freeMemoryMB(): free memory now (tests pass a fixed value).
+function createRenderingService({ repo, ffmpeg, transcription, outputDir, sourceDir, log = console, freeMemoryMB = () => os.freemem() / 1048576 }) {
   const draftFile = (slug, clipId) => repo.fileIn(slug, 'drafts', `${clipId}.mp4`);
   const outputDirOf = slug => path.join(outputDir, slugify(slug));
 
@@ -87,7 +88,7 @@ function createRenderingService({ repo, ffmpeg, transcription, outputDir, source
     // what this render probably needs, and a warning when the computer is short of memory
     job.estimate = estimateRender({ meta: p.meta, duration: dur, style: ep.style, draft: !!draft, cores: os.cpus().length,
       layers: tl.layout.items.length + built.inputs.filter(i => i.kind === 'image').length, gpu: !!gpu });
-    const warn = memoryWarning(job.estimate, os.freemem() / 1048576);
+    const warn = memoryWarning(job.estimate, freeMemoryMB());
     if (warn) job.note = warn;
     // title and description inside the MP4 (players and some upload pages show them)
     const meta = draft ? [] : metadataArgs(uploadText(p, clip));

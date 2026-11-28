@@ -6,6 +6,7 @@ const path = require('path');
 const { round1, exists, readJSON, writeJSON } = require('../shared/fsutil');
 const { httpError } = require('../shared/errors');
 const { detectSettings, findCandidates, candidatesToClips, mergeDetected, parseMeta } = require('../core/detection');
+const { audioMix } = require('../infrastructure/ffmpeg');
 const { smartSettings, findSmartCandidates } = require('../core/smart');
 
 // The preview copy played in the app: 360p (fast to build, light) or 720p (sharper player and 9:16 preview).
@@ -58,6 +59,7 @@ function createDetectionService({ repo, ffmpeg, sourceDir, fingerprint = null, p
     job.message = n === 1 ? 'Measuring loudness, scanning action, building preview' : resumed ? `Analyzing: ${resumed} of ${n} parts already done` : `Analyzing in ${n} parts`;
 
     // progress of the parts running now; cancelling the task stops every part (job.children)
+    const mix = audioMix(p.meta, '[mixed]');   // several audio tracks: analyze and preview the mix
     const running = new Map();
     job.children = new Set();
     const report = () => { const now = [...running.values()].reduce((x, r) => x + r.progress, 0); job.progress = Math.min(0.97, (resumed + doneHere + now) / n); };
@@ -66,11 +68,11 @@ function createDetectionService({ repo, ffmpeg, sourceDir, fingerprint = null, p
       const sub = { id: `${job.id}.${q.i}`, progress: 0, get cancelled() { return job.cancelled; }, set child(c) { if (c) job.children.add(c); } };
       running.set(q.i, sub);
       const fc = `[0:v]fps=30,scale=-2:${ph},format=yuv420p[p];[0:v]fps=2,scale=160:-2,select='gte(scene,0)',metadata=print:key=lavfi.scene_score:file=scene_${q.i}.txt,nullsink`
-        + (p.meta.hasAudio ? `;[0:a]aresample=8000,asetnsamples=8000,astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=rms_${q.i}.txt,anullsink` : '');
+        + (p.meta.hasAudio ? `;${mix ? mix + ';[mixed]asplit=2[ma][pa];[ma]' : '[0:a]'}aresample=8000,asetnsamples=8000,astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=rms_${q.i}.txt,anullsink` : '');
       const tick = setInterval(report, 500);
       try {
         await ffmpeg.run(sub, ['-hide_banner', '-nostats', '-progress', 'pipe:1', '-y', '-ss', String(q.start), '-t', String(q.length), '-i', src,
-          '-filter_complex', fc, '-map', '[p]', '-map', '0:a?', ...proxyEnc(ph), `part_${q.i}.tmp.mp4`], { cwd: partsDir, duration: q.length });
+          '-filter_complex', fc, '-map', '[p]', '-map', mix ? '[pa]' : '0:a?', ...proxyEnc(ph), `part_${q.i}.tmp.mp4`], { cwd: partsDir, duration: q.length });
       } finally { clearInterval(tick); }
       const len = Math.ceil(q.length);
       const rms = new Array(len).fill(-90), scene = new Array(len).fill(0);
@@ -133,8 +135,10 @@ function createDetectionService({ repo, ffmpeg, sourceDir, fingerprint = null, p
     if (!p.meta.hasAudio) return;
     const dir = repo.projDir(slug);
     job.message = 'Building the detailed waveform';
+    const mix = audioMix(p.meta, '[mixed]');
+    const chain = 'aresample=8000,asetnsamples=800,astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.Peak_level:file=wave.txt';
     await ffmpeg.run(job, ['-hide_banner', '-nostats', '-progress', 'pipe:1', '-y', '-i', path.join(sourceDir, p.video), '-vn',
-      '-af', 'aresample=8000,asetnsamples=800,astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.Peak_level:file=wave.txt',
+      ...(mix ? ['-filter_complex', `${mix};[mixed]${chain}[w]`, '-map', '[w]'] : ['-af', chain]),
       '-f', 'null', '-'], { cwd: dir, duration: p.meta.duration });
     const steps = Math.ceil(p.meta.duration * 10);
     const bytes = Buffer.alloc(steps);
