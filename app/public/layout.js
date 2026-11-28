@@ -114,6 +114,7 @@
     const e = effective(p, clip);
     const st = Object.assign({}, e.style);
     delete st.encoder;
+    delete st.renderProfile; // how a short is encoded, not what it shows
     const capOn = !!(st.captions && clip.captionsOn !== false);
     const captions = capOn && Array.isArray(clip.captions)
       ? clip.captions.map(ch => [ch.s, ch.e, (ch.words || []).map(w => [w.w, w.s, w.e])]) : null;

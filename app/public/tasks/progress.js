@@ -1,6 +1,14 @@
 'use strict';
 // The Tasks panel: progress, details, retry.
 
+// Memory and speed of a task (measured while it runs) and the estimate made before it started.
+function jobStats(j) {
+  const s = j.stats || {}, out = [];
+  if (s.peakMemoryMB) out.push(`${tr('peak memory')} ${s.peakMemoryMB} MB`);
+  else if (j.estimate && isActiveJob(j)) out.push(`≈ ${j.estimate.memoryMB} MB`);
+  if (s.speed && j.status === 'running') out.push(`${s.speed}× ${tr('real time')}`);
+  return out.length ? ' · ' + out.join(' · ') : '';
+}
 function renderJobs() {
   const active = S.jobs.filter(isActiveJob).length;
   const b = $('#jobsBadge'); b.textContent = active; b.classList.toggle('hidden', !active);
@@ -23,10 +31,10 @@ function renderJobs() {
     <div class="job ${j.status}" id="job-${j.id}">
       <div class="top"><b>${esc(j.label)}</b><span class="muted">${{ running: Math.round(j.progress * 100) + '%', queued: 'queued', done: '✓ done', error: 'failed', cancelled: 'cancelled' }[j.status]}</span></div>
       ${isActiveJob(j) ? `<div class="progress"><i style="width:${Math.round(j.progress * 100)}%"></i></div>` : ''}
-      <div class="row between"><div class="msg ${j.status === 'error' ? 'err' : ''}">${esc(j.status === 'error' ? (j.hint || 'Failed') : j.status === 'running' ? j.message : j.status === 'done' && j.started ? `took ${fmt((j.finished - j.started) / 1000, false)}` : '')}</div>
+      <div class="row between"><div class="msg ${j.status === 'error' ? 'err' : ''}"><span>${esc(j.status === 'error' ? (j.hint || 'Failed') : j.status === 'running' ? j.message : j.status === 'done' && j.started ? `took ${fmt((j.finished - j.started) / 1000, false)}` : '')}</span>${j.status === 'running' || j.status === 'done' ? `<span class="muted">${esc(jobStats(j))}</span>` : ''}${j.note && isActiveJob(j) ? `<div class="small warn-text">${esc(j.note)}</div>` : ''}</div>
       ${isActiveJob(j) ? `<button class="btn small ghost" data-cancel="${j.id}" title="Stop this task">Cancel</button>`
         : ['cancelled', 'error'].includes(j.status) ? `<button class="btn small ghost" data-retry="${j.id}">↻ Retry</button>` : ''}</div>
-      ${j.status === 'error' ? `<details class="err-details" data-job="${j.id}"><summary>Technical details</summary><pre>${esc(j.error)}</pre><button class="btn small ghost" data-copy="${j.id}">Copy</button></details>` : ''}
+      ${j.status === 'error' ? `<details class="err-details" data-job="${j.id}"><summary>Technical details</summary><pre>${esc(j.error)}</pre>${j.logFile ? `<p class="small muted">${esc(tr('Full log'))}: <code>${esc(j.logFile)}</code></p>` : ''}<button class="btn small ghost" data-copy="${j.id}">Copy</button></details>` : ''}
     </div>`).join('') : '<div class="empty">No tasks yet.</div>';
   const el = $('#jobList');
   if (el.dataset.html !== html) {

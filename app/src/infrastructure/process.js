@@ -2,6 +2,7 @@
 // Running external programs (ffmpeg, whisper-cli, PowerShell…), and opening files with the desktop.
 const path = require('path');
 const { spawn, execFileSync } = require('child_process');
+const monitor = require('./monitor');
 
 const IS_WIN = process.platform === 'win32';
 
@@ -39,6 +40,11 @@ function createProcessRunner({ env = process.env } = {}) {
     return new Promise((resolve, reject) => {
       const child = spawn(cmd, args, { cwd: opts.cwd, env, windowsHide: true });
       if (job) job.child = child;
+      // memory of the tool while it runs (job.stats.peakMemoryMB), never failing the task
+      if (job && opts.monitor !== false) {
+        job.stats = job.stats || {};
+        monitor.watch(child, ({ memoryMB }) => { job.stats.memoryMB = memoryMB; job.stats.peakMemoryMB = Math.max(job.stats.peakMemoryMB || 0, memoryMB); });
+      }
       let errTail = '';
       const base = opts.base || 0, span = opts.span == null ? 1 : opts.span;
       child.stdout.on('data', d => {
@@ -48,6 +54,8 @@ function createProcessRunner({ env = process.env } = {}) {
           const us = Number(m[m.length - 1].split('=')[1]);
           job.progress = base + span * Math.min(1, us / 1e6 / opts.duration);
         }
+        const sp = String(d).match(/speed=\s*([\d.]+)x/g);   // seconds of video per second
+        if (sp) { job.stats = job.stats || {}; job.stats.speed = Number(sp[sp.length - 1].replace(/[^\d.]/g, '')); }
       });
       child.stderr.on('data', d => {
         const s = String(d);

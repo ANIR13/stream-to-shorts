@@ -5,6 +5,7 @@ All notable changes to Stream → Shorts are listed here. The format follows [Ke
 ## [Unreleased]
 
 ### Added
+- **Render pipeline:** render profiles (fast, balanced, high quality, small file) for the processor and graphics card; Apple VideoToolbox detected; memory and time estimates with a warning when memory is short; memory and speed of each task shown in Tasks; every new short is checked (size, length, sound) before it replaces the previous one; a log file for each failed render; one automatic retry with fewer threads when memory runs out; title and description written inside the MP4 and updated without re-encoding when upload texts change. The Style tab shows this computer's cores and memory.
 - **Timeline engine and Tracks tab:** every short is described as tracks (video layers, pictures, title, captions, text overlays, stream sound, music) and compiled to ffmpeg. New per clip: cut out parts or all pauses (jump cuts, captions follow), text overlays, picture overlays (PNG/JPG/WebP from the source folder), a music track that gets quieter while someone speaks, hide or lock any track, lock the clip timing. Pictures and music can be dropped on the window. Shown in the live preview and on the timeline. Project format 4.
 - **Smart detection** (optional, offline): a multi-signal score, Score = wA·A + wV·V + wS·S + wE·E + wC·C, combining audio excitement, visual activity, what is said (gaming events, insights, questions, hint words, topic words), emotion (laughter, excitement, surprise, frustration, enthusiasm) and context (complete sentences, question and answer, setup and punchline, story). It uses the transcript of the whole stream, with English and French word lists; the fast engine stays the default. Adjustable weights, reasons shown in "Why this moment?", clips that start and end on pauses. Whisper's laughter tags are kept for it. See [docs/DETECTION.md](docs/DETECTION.md).
 - Project file format 3: detection settings store the engine and the five weights.
@@ -31,6 +32,8 @@ All notable changes to Stream → Shorts are listed here. The format follows [Ke
 - See [SECURITY.md](SECURITY.md) for the protections and the risks of opening someone else's project file.
 
 ### Fixed
+- The memory of running tools could not be read on Windows in languages other than English.
+- The clean-up of unfinished renders matched a slightly wider set of file names than intended.
 - On Windows the app crashed at startup when setup had not been run yet.
 - The video was shifted 2 px to the right in the gameplay and split layouts (a thin strip of background showed on the left). Shorts rendered before keep the old position until rendered again.
 - Snap to speech could put a clip edge a few hundredths of a second into the next word after a short pause.

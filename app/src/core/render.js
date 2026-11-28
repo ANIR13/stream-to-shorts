@@ -169,9 +169,8 @@ const fileTitle = c => [c.title1, c.title2].join(' ').toLowerCase().replace(/[^a
 // short_07_the_comeback.mp4: the clip's permanent number keeps names stable when clips move.
 const shortName = clip => `short_${String(clip.num || 0).padStart(2, '0')}_${fileTitle(clip)}.mp4`;
 
-// Processor (libx264) encoder arguments: final quality, or ultrafast for drafts.
-const cpuEncoderArgs = (draft, crf) => (draft
-  ? ['-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '30', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '96k']
-  : ['-c:v', 'libx264', '-preset', 'medium', '-crf', String(crf), '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '160k']);
+// Processor (libx264) encoder arguments: final quality, or ultrafast for drafts (the balanced profile;
+// see core/profiles.js for the others).
+const cpuEncoderArgs = (draft, crf) => require('./profiles').cpuArgs('balanced', crf, draft);
 
 module.exports = { hex, assColor, assTime, assEsc, buildASS, buildFilter, draftFilter, fileTitle, shortName, cpuEncoderArgs };

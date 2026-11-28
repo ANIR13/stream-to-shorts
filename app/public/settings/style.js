@@ -17,6 +17,9 @@ function renderStyleTab() {
     ? `${tr('Graphics card')}: ${S.status.gpu}. ${tr('A little faster and smaller files, with slightly lower quality. If it fails, the processor is used automatically.')}`
     : tr('No compatible graphics encoder was found on this PC.');
   $('[data-style="captionPos"]').disabled = st.captionAuto;
+  $('[data-style="renderProfile"]').value = st.renderProfile || 'balanced';
+  const sys = S.status?.system;
+  $('#systemNote').textContent = sys ? `${tr('This computer')}: ${sys.cores} ${tr('cores')}, ${sys.memoryGB} GB ${tr('memory')} (${sys.freeMemoryGB} GB ${tr('free')}).` : '';
   renderPresets();
 }
 async function loadPresets() {

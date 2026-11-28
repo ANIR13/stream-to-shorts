@@ -22,12 +22,13 @@ function parseProbe(j) {
 // Shown when ffmpeg/ffprobe can't be started at all.
 const MISSING_FFMPEG = 'FFmpeg is not installed or could not start. Run the setup again: setup.bat on Windows, ./setup.sh on Linux.';
 
-const HW_ENCODERS = ['h264_qsv', 'h264_nvenc', 'h264_amf'];
-const HW_NAMES = { h264_qsv: 'Intel Quick Sync', h264_nvenc: 'NVIDIA NVENC', h264_amf: 'AMD AMF' };
+const HW_ENCODERS = ['h264_qsv', 'h264_nvenc', 'h264_amf', 'h264_videotoolbox'];
+const HW_NAMES = { h264_qsv: 'Intel Quick Sync', h264_nvenc: 'NVIDIA NVENC', h264_amf: 'AMD AMF', h264_videotoolbox: 'Apple VideoToolbox' };
 // Encoder arguments for a graphics-card encoder at a quality comparable to libx264 -crf <crf>.
 function gpuArgsFor(encoder, crf) {
   if (encoder === 'h264_qsv') return ['-c:v', 'h264_qsv', '-preset', 'medium', '-global_quality', String(crf), '-look_ahead', '0'];
   if (encoder === 'h264_nvenc') return ['-c:v', 'h264_nvenc', '-preset', 'p5', '-rc', 'vbr', '-cq', String(crf + 3), '-b:v', '0', '-pix_fmt', 'yuv420p'];
+  if (encoder === 'h264_videotoolbox') return ['-c:v', 'h264_videotoolbox', '-q:v', String(Math.max(1, Math.min(100, Math.round(100 - crf * 2)))), '-allow_sw', '1', '-pix_fmt', 'yuv420p'];
   if (encoder === 'h264_amf') return ['-c:v', 'h264_amf', '-quality', 'quality', '-rc', 'cqp', '-qp_i', String(crf), '-qp_p', String(crf + 2), '-pix_fmt', 'yuv420p'];
   return null;
 }

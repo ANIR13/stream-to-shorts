@@ -118,6 +118,19 @@ The **⋯** button next to the video list opens this video's project or output f
 - Whisper models live in `tools/whisper/models/` (`setup.bat` / `setup.sh` download `ggml-small.bin`). For better accuracy, add `ggml-medium.bin` or `ggml-large-v3.bin` from https://huggingface.co/ggerganov/whisper.cpp. Bigger models are slower.
 - For Arabic captions, pick **Arial** or **Tahoma** as the caption font, because Impact has no Arabic letters.
 
+## Render quality and speed
+
+In the **Style** tab, **Render profile** chooses between speed and quality for every short of the video:
+
+| Profile | When to use it |
+|---|---|
+| Fast | Many shorts, a slow computer, a quick check |
+| Balanced | The default |
+| High quality | The final version of an important short (slower) |
+| Small file | Messaging apps or slow uploads (lower bitrate) |
+
+Changing it doesn't mark shorts as outdated; render again to use it. **Tasks** shows each render's memory and speed. If a render fails, **Technical details** names a log file in `projects/<video>/logs/` you can attach to a bug report. A new short is always checked before it replaces the previous one, so a failed render never leaves you without a video.
+
 ## Tracks: cuts, overlays and music
 
 The **Tracks** tab shows everything the selected short is made of. Untick **Visible** to leave a track out of the video (the title, captions, pictures, the stream's sound, the music); tick **Locked** to protect it. **Clip timing** locked means the clip's start and end can't be moved by accident.
