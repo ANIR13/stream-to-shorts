@@ -85,7 +85,7 @@ function createProjectRepository({ projectsDir, sourceDir, probe, outputDir = nu
     const slug = await slugFor(file);
     if (await exists(projFile(slug))) {
       const raw = await readJSON(projFile(slug), null);
-      if (raw && needsMigration(raw)) return upgrade(slug, raw);
+      if (raw && needsMigration(raw)) await upgrade(slug, raw);   // then the usual checks below
       let p = await load(slug);
       // projects made before audio tracks were counted: count them once (game + microphone tracks are mixed)
       if (!p.meta.audioChecked && p.meta.hasAudio) {
