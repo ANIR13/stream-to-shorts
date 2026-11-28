@@ -16,7 +16,8 @@ function parseProbe(j) {
   if (!v) throw new Error('No video stream found');
   const a = j.streams.find(s => s.codec_type === 'audio');
   const [n, d] = String(v.r_frame_rate || '30/1').split('/').map(Number);
-  return { duration: Number(j.format.duration), width: v.width, height: v.height, fps: d ? n / d : 30, hasAudio: !!a, size: Number(j.format.size) };
+  const audioStreams = j.streams.filter(s => s.codec_type === 'audio').length;
+  return { duration: Number(j.format.duration), width: v.width, height: v.height, fps: d ? n / d : 30, hasAudio: !!a, size: Number(j.format.size), ...(audioStreams > 1 ? { audioStreams } : {}) };
 }
 
 // Shown when ffmpeg/ffprobe can't be started at all.
@@ -71,4 +72,12 @@ function createFfmpeg({ ffmpegPath, ffprobePath, runner }) {
   return api;
 }
 
-module.exports = { MISSING_FFMPEG, createFfmpeg, parseVersion, filterArgFor, parseProbe, gpuArgsFor, HW_NAMES };
+// Several audio tracks (OBS often records the microphone apart from the game): a filter that mixes
+// them all into one label, or null when there is only one track.
+function audioMix(meta, label) {
+  const n = Math.min(8, Number(meta && meta.audioStreams) || 1);
+  if (!meta || !meta.hasAudio || n < 2) return null;
+  return `${Array.from({ length: n }, (_, i) => `[0:a:${i}]`).join('')}amix=inputs=${n}:duration=longest:normalize=0${label}`;
+}
+
+module.exports = { audioMix, MISSING_FFMPEG, createFfmpeg, parseVersion, filterArgFor, parseProbe, gpuArgsFor, HW_NAMES };

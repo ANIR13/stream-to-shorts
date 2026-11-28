@@ -33,6 +33,9 @@ All notable changes to Stream → Shorts are listed here. The format follows [Ke
 - See [SECURITY.md](SECURITY.md) for the protections and the risks of opening someone else's project file.
 
 ### Fixed
+- Renders failed with FFmpeg 5.1 (Debian 12, Ubuntu) on recordings with mono sound ("Cannot select channel layout"); shorts now always have 48 kHz stereo sound.
+- Recordings with several audio tracks (game and microphone recorded apart, as OBS can do) only used the first track: every track is now mixed in shorts, analysis, preview, speech recognition and waveform. Existing projects are checked once when opened.
+- A crash of speech recognition left half-written files in the transcripts folder.
 - The memory of running tools could not be read on Windows in languages other than English.
 - The clean-up of unfinished renders matched a slightly wider set of file names than intended.
 - On Windows the app crashed at startup when setup had not been run yet.

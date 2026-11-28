@@ -146,3 +146,36 @@ test('on Windows the app crashed at startup when setup had not been run yet', ()
   createEnvironment(root, { lookup: () => null }).prepare();
   assert.ok(fs.existsSync(path.join(root, 'tools')));
 });
+
+test('the microphone was missing from shorts of recordings with two audio tracks', () => {
+  // Cause: only the first audio track was used; OBS often records the microphone on a second one.
+  const { buildFilter } = require(app('src/core/render'));
+  const p = { meta: { width: 1920, height: 1080, hasAudio: true, audioStreams: 2 }, layout: { mode: 'gameplay', cam: { x: 0, y: 0, w: 100, h: 100 }, game: { x: 0, y: 0, w: 1920, h: 1080 } }, style: { ...STYLE_DEFAULTS } };
+  const L = Layout.compute(p.layout, p.meta, p.style, false);
+  const f = buildFilter(p, L, 10);
+  assert.match(f, /^\[0:a:0\]\[0:a:1\]amix=inputs=2:duration=longest:normalize=0\[amix\]/m);
+  assert.match(f, /^\[amix\]loudnorm/m);
+  assert.doesNotMatch(buildFilter({ ...p, meta: { ...p.meta, audioStreams: undefined } }, L, 10), /amix/, 'one track: unchanged');
+});
+
+test('a crashed speech recognition left half-written files in the transcripts folder', async () => {
+  // Cause: the extracted audio and whisper's partial output were only removed after a success.
+  const { createTranscriptionService } = require(app('src/services/transcriptionService'));
+  const dirs = tmpApp();
+  fs.writeFileSync(path.join(dirs.sourceDir, 'v.mp4'), '');
+  const models = path.join(dirs.root, 'm'); fs.mkdirSync(models); fs.writeFileSync(path.join(models, 'ggml-small.bin'), '');
+  const repo = createProjectRepository({ ...dirs, probe: async () => ({ duration: 10, width: 1920, height: 1080, hasAudio: true }) });
+  const p = await repo.open('v.mp4');
+  const runner = { runProc: async (job, cmd, args, o) => { fs.writeFileSync(path.join(o.cwd, args[args.indexOf('-of') + 1] + '.json'), '{"tr'); fs.writeFileSync(path.join(o.cwd, args[args.indexOf('-f') + 1]), 'wav'); throw new Error('whisper-cli failed (code 1)'); } };
+  const t = createTranscriptionService({ repo, ffmpeg: fakeFfmpeg(), runner, whisperPath: 'w', modelsDir: models, threads: 1, sourceDir: dirs.sourceDir, isWin: false });
+  await assert.rejects(t.transcribeAll({ id: 1 }, p.slug));
+  assert.deepEqual(fs.readdirSync(repo.fileIn(p.slug, 'transcripts')), []);
+});
+
+test('renders failed with FFmpeg 5.1 ("Cannot select channel layout") on mono recordings', () => {
+  // Cause: after a filter re-initialisation, FFmpeg 5.1 (Debian 12, Ubuntu) could not agree on a channel
+  // layout between the resampler and the fades. The format is now stated (48 kHz stereo).
+  const { buildFilter } = require(app('src/core/render'));
+  const p = { meta: { width: 1280, height: 720, hasAudio: true }, layout: { mode: 'gameplay', cam: { x: 0, y: 0, w: 100, h: 100 }, game: { x: 0, y: 0, w: 1280, h: 720 } }, style: { ...STYLE_DEFAULTS } };
+  assert.match(buildFilter(p, Layout.compute(p.layout, p.meta, p.style, false), 10), /aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,afade=t=in/);
+});

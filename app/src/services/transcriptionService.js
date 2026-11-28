@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const Layout = require('../../public/layout.js');
 const { exists, readJSON, writeJSON } = require('../shared/fsutil');
 const { sameContent } = require('../infrastructure/fingerprint');
+const { audioMix } = require('../infrastructure/ffmpeg');
 const { whisperKey, applyFixes, dropEcho, parseWhisper, parseWhisperEvents, chunkWords, keepChunks } = require('../core/captions');
 
 const shortHash = s => crypto.createHash('md5').update(s).digest('hex').slice(0, 8);
@@ -40,22 +41,30 @@ function createTranscriptionService({ repo, ffmpeg, runner, whisperPath, modelsD
     const src = path.join(sourceDir, p.video);
     job.message = 'Extracting audio';
     await ffmpeg.run(job, ['-hide_banner', '-nostats', '-progress', 'pipe:1', '-y', '-ss', String(start), '-t', String(end - start),
-      '-i', src, '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', name + '.wav'],
+      '-i', src, '-vn', ...(audioMix(p.meta, '[a]') ? ['-filter_complex', audioMix(p.meta, '[a]'), '-map', '[a]'] : []), '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', name + '.wav'],
     { cwd: dir, duration: end - start, base, span: span * 0.1 });
     job.message = 'Transcribing speech (AI)';
     const args = ['-m', model, '-f', name + '.wav', '-l', w.language || 'auto', '-t', String(threads),
       '-ml', '1', '-sow', '-oj', '-of', name + '.w', '-pp'];
     if (w.translate) args.push('-tr');
     if (w.prompt && String(w.prompt).trim()) args.push('--prompt', String(w.prompt).trim());
-    await runner.runProc(job, whisperPath, args, {
-      cwd: dir,
-      onStderr: s => {
-        const m = [...s.matchAll(/progress\s*=\s*(\d+)%/g)].pop();
-        if (m) job.progress = base + span * (0.1 + 0.9 * Number(m[1]) / 100);
-      },
-    });
-    const raw = await fsp.readFile(path.join(dir, name + '.w.json'));
-    const j = JSON.parse(raw.toString('utf8'));
+    // a crash or cancel leaves no half-written files (extracted audio, partial whisper output)
+    const dropTemp = () => Promise.all([name + '.wav', name + '.w.json'].map(n => fsp.rm(path.join(dir, n), { force: true }).catch(() => {})));
+    let j;
+    try {
+      await runner.runProc(job, whisperPath, args, {
+        cwd: dir,
+        onStderr: s => {
+          const m = [...s.matchAll(/progress\s*=\s*(\d+)%/g)].pop();
+          if (m) job.progress = base + span * (0.1 + 0.9 * Number(m[1]) / 100);
+        },
+      });
+      j = JSON.parse((await fsp.readFile(path.join(dir, name + '.w.json'))).toString('utf8'));
+    } catch (e) {
+      await dropTemp();
+      if (e instanceof SyntaxError) throw new Error('Speech recognition stopped before it finished (its output is incomplete). Try again.');
+      throw e;
+    }
     const words = parseWhisper(j, start);
     const events = parseWhisperEvents(j, start);
     await writeJSON(path.join(dir, name + '.json'), { key, start, end, language: j.result && j.result.language, words, events, fingerprint: fpNow || null });

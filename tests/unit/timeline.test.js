@@ -49,7 +49,7 @@ test('cuts: the short gets shorter, the graph joins the parts, captions move wit
   assert.match(out.filter, /concat=n=2:v=1:a=1\[vcut\]\[acut\]/);
   assert.match(out.filter, /\[vcut\]fps=30/);
   assert.match(out.filter, /^\[0:a\]loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000,asplit=2\[la0\]\[la1\]/m, 'normalized before cutting');
-  assert.match(out.filter, /^\[acut\]aresample=48000,afade/m, 'not normalized twice');
+  assert.match(out.filter, /^\[acut\]aresample=48000,aformat=[^,]+,afade/m, 'not normalized twice');
   assert.match(out.filter, /fade=t=out:st=24\.50/, 'fades use the new length');
   // the line spoken inside the cut is gone; the one after it moved 5 s earlier
   const ev = out.ass.split('\n').filter(l => l.startsWith('Dialogue: 2,')).map(l => l.split(',')[1]);

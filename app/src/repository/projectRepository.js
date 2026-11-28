@@ -86,13 +86,18 @@ function createProjectRepository({ projectsDir, sourceDir, probe, outputDir = nu
     if (await exists(projFile(slug))) {
       const raw = await readJSON(projFile(slug), null);
       if (raw && needsMigration(raw)) return upgrade(slug, raw);
-      const p = await load(slug);
+      let p = await load(slug);
+      // projects made before audio tracks were counted: count them once (game + microphone tracks are mixed)
+      if (!p.meta.audioChecked && p.meta.hasAudio) {
+        const m = await probe(path.join(sourceDir, file)).catch(() => null);
+        if (m) p = await update(slug, q => { q.meta.audioChecked = true; if (m.audioStreams > 1) q.meta.audioStreams = m.audioStreams; });
+      }
       return p.clips.some(c => !c.num) ? update(slug, () => {}) : p;
     }
     const src = path.join(sourceDir, file);
     if (!(await exists(src))) throw httpError(404, 'Video not found in source folder');
     const meta = await probe(src);
-    await writeJSON(projFile(slug), { ...defaultProject(file, meta, slug), version: SCHEMA_VERSION });
+    await writeJSON(projFile(slug), { ...defaultProject(file, { ...meta, audioChecked: true }, slug), version: SCHEMA_VERSION });
     return load(slug);
   }
 
