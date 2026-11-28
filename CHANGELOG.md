@@ -5,6 +5,7 @@ All notable changes to Stream → Shorts are listed here. The format follows [Ke
 ## [Unreleased]
 
 ### Added
+- **Timeline engine and Tracks tab:** every short is described as tracks (video layers, pictures, title, captions, text overlays, stream sound, music) and compiled to ffmpeg. New per clip: cut out parts or all pauses (jump cuts, captions follow), text overlays, picture overlays (PNG/JPG/WebP from the source folder), a music track that gets quieter while someone speaks, hide or lock any track, lock the clip timing. Pictures and music can be dropped on the window. Shown in the live preview and on the timeline. Project format 4.
 - **Smart detection** (optional, offline): a multi-signal score, Score = wA·A + wV·V + wS·S + wE·E + wC·C, combining audio excitement, visual activity, what is said (gaming events, insights, questions, hint words, topic words), emotion (laughter, excitement, surprise, frustration, enthusiasm) and context (complete sentences, question and answer, setup and punchline, story). It uses the transcript of the whole stream, with English and French word lists; the fast engine stays the default. Adjustable weights, reasons shown in "Why this moment?", clips that start and end on pauses. Whisper's laughter tags are kept for it. See [docs/DETECTION.md](docs/DETECTION.md).
 - Project file format 3: detection settings store the engine and the five weights.
 - **Preview quality** option per video: 360p (fast) or 720p (sharp) preview copy.

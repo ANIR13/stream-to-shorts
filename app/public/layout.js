@@ -98,6 +98,18 @@
     for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
     return h.toString(16).padStart(8, '0') + ':' + s.length.toString(36);
   }
+  // Timeline additions (cuts, overlays, music, hidden or locked tracks): part of the fingerprint only
+  // when a clip uses them, so shorts rendered before they existed stay up to date.
+  function extrasOf(clip) {
+    const out = {};
+    for (const k of ['cuts', 'texts', 'images', 'music', 'tracks']) {
+      const v = clip[k];
+      if (v && (Array.isArray(v) ? v.length : Object.keys(v).length)) out[k] = v;
+    }
+    if (out.tracks) out.tracks = Object.fromEntries(Object.entries(out.tracks).filter(([, t]) => t && t.hidden).map(([k]) => [k, 'hidden']));
+    if (out.tracks && !Object.keys(out.tracks).length) delete out.tracks;
+    return Object.keys(out).length ? out : undefined;
+  }
   function renderSig(p, clip) {
     const e = effective(p, clip);
     const st = Object.assign({}, e.style);
@@ -110,6 +122,7 @@
       title1: clip.title1 || '', title2: clip.title2 || '', style: st,
       layout: { mode: e.layout.mode, camOnTop: e.layout.camOnTop !== false, cam: e.layout.cam, game: e.layout.game },
       captions,
+      extras: extrasOf(clip),
     }));
   }
 

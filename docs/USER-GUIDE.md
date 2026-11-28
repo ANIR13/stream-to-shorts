@@ -118,6 +118,17 @@ The **⋯** button next to the video list opens this video's project or output f
 - Whisper models live in `tools/whisper/models/` (`setup.bat` / `setup.sh` download `ggml-small.bin`). For better accuracy, add `ggml-medium.bin` or `ggml-large-v3.bin` from https://huggingface.co/ggerganov/whisper.cpp. Bigger models are slower.
 - For Arabic captions, pick **Arial** or **Tahoma** as the caption font, because Impact has no Arabic letters.
 
+## Tracks: cuts, overlays and music
+
+The **Tracks** tab shows everything the selected short is made of. Untick **Visible** to leave a track out of the video (the title, captions, pictures, the stream's sound, the music); tick **Locked** to protect it. **Clip timing** locked means the clip's start and end can't be moved by accident.
+
+- **Cuts:** play to where a boring part starts, click **Start a cut at the playhead**, play to where it ends, click **End the cut at the playhead**. Or click **Remove pauses** to cut every silence longer than the length you choose (it uses the clip's captions or the stream transcript). Cut parts are hatched on the timeline and skipped when you play the clip; captions move with the speech.
+- **Text overlays:** **＋ Text at the playhead** adds a text for 3 seconds; change its words, timing (seconds from the clip start), position, size and colour.
+- **Pictures:** put PNG, JPG or WebP files in the `source` folder (or drop them on the window), then **＋ Picture at the playhead**; choose the corner and size.
+- **Music:** put an MP3, WAV or M4A file in the `source` folder (or drop it on the window) and choose it. It loops if it's shorter than the short, fades in and out, and gets quieter while someone speaks.
+
+Everything appears in the live 9:16 preview and is undoable with Ctrl+Z.
+
 ## Smart detection
 
 **Auto-detect** has two engines:

@@ -114,6 +114,7 @@
         <button data-tab="layout" role="tab" aria-selected="false" tabindex="-1">Layout</button>
         <button data-tab="style" role="tab" aria-selected="false" tabindex="-1">Style</button>
         <button data-tab="captions" role="tab" aria-selected="false" tabindex="-1">Captions &amp; AI</button>
+        <button data-tab="tracks" role="tab" aria-selected="false" tabindex="-1">Tracks</button>
         <button data-tab="exports" role="tab" aria-selected="false" tabindex="-1">Exports</button>
       </nav>
 
@@ -284,6 +285,8 @@
         </div>
 
         <!-- EXPORTS -->
+        <!-- TRACKS -->
+        <div class="tab hidden" data-tab="tracks" role="tabpanel" aria-label="Tracks"><div id="tracksBody"></div></div>
         <div class="tab hidden" data-tab="exports" role="tabpanel" aria-label="exports">
           <div class="row gap">
             <button id="btnOpenOutput" class="btn ghost small">Open output folder</button>
@@ -386,6 +389,7 @@
   <script src="editor/clip-editor.js"></script>
   <script src="editor/caption-editor.js"></script>
   <script src="editor/clip-actions.js"></script>
+  <script src="editor/tracks.js"></script>
   <script src="components/tabs.js"></script>
   <script src="settings/layout.js"></script>
   <script src="settings/style.js"></script>

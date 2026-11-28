@@ -4,7 +4,9 @@ const fsp = require('fs').promises;
 const path = require('path');
 const Layout = require('../../public/layout.js');
 const { slugify } = require('../shared/fsutil');
-const { buildASS, buildFilter, draftFilter, shortName, cpuEncoderArgs } = require('../core/render');
+const { draftFilter, shortName, cpuEncoderArgs } = require('../core/render');
+const { buildTimeline, compileTimeline, inputArgs } = require('../core/timeline');
+const { exists } = require('../shared/fsutil');
 const { uploadText, txtName, uploadTextFile } = require('../core/upload');
 
 const DRAFT_SECONDS = 10;
@@ -43,19 +45,24 @@ function createRenderingService({ repo, ffmpeg, transcription, outputDir, source
     }
     if (draft && wantCaptions && !Array.isArray(clip.captions)) job.note = 'No captions yet: generate them in Edit clip to see them in drafts.';
 
-    // The part of the source to render (the whole clip, or a 10 s window for a draft).
-    let seg = clip;
+    // The short as a timeline (the whole clip, or a 10 s window of it for a draft), compiled to the
+    // subtitle file, the filter graph and the inputs (see core/timeline.js).
+    let window = null;
     if (draft) {
       const from = Math.min(Math.max(Number(draft.from) || clip.start, clip.start), Math.max(clip.start, clip.end - DRAFT_SECONDS));
-      seg = { ...clip, start: from, end: Math.min(clip.end, from + DRAFT_SECONDS) };
+      window = { start: from, end: Math.min(clip.end, from + DRAFT_SECONDS) };
     }
-    const dur = Math.round((seg.end - seg.start) * 100) / 100;
+    const tl = buildTimeline(ep, clip, window);
+    if (tl.duration <= 1) throw new Error('Clip is too short');
+    const built = compileTimeline(ep, clip, tl);
+    const dur = built.duration;
+    for (const i of built.inputs) {
+      if (!(await exists(path.join(sourceDir, i.file)))) throw new Error(`${i.kind === 'image' ? 'Image' : 'Music'} not found in the source folder: ${i.file}`);
+    }
     const work = repo.fileIn(slug, draft ? 'drafts' : 'render', clip.id);
     await fsp.mkdir(work, { recursive: true });
-    const hasTitle = !!(clip.title1 || clip.title2);
-    const L = Layout.compute(ep.layout, p.meta, ep.style, hasTitle);
-    await fsp.writeFile(path.join(work, 'subs.ass'), '﻿' + buildASS(ep, seg, L, dur), 'utf8');
-    let filter = buildFilter(ep, L, dur);
+    await fsp.writeFile(path.join(work, 'subs.ass'), '﻿' + built.ass, 'utf8');
+    let filter = built.filter;
     if (draft) filter = draftFilter(filter);
     await fsp.writeFile(path.join(work, 'filter.txt'), filter);
 
@@ -69,7 +76,8 @@ function createRenderingService({ repo, ffmpeg, transcription, outputDir, source
     await ffmpeg.detectHardware();
     const gpu = !draft && ep.style.encoder === 'gpu' ? ffmpeg.gpuArgs(crf) : null;
     const encode = enc => ffmpeg.run(job, ['-hide_banner', '-nostats', '-progress', 'pipe:1', '-y',
-      '-ss', String(seg.start), '-t', String(dur), '-i', path.join(sourceDir, p.video),
+      '-ss', String(built.seek.start), '-t', String(built.seek.length), '-i', path.join(sourceDir, p.video),
+      ...inputArgs(built.inputs, sourceDir, dur, tl.fps, path.join),
       ffmpeg.filterArg, 'filter.txt', '-map', '[v]', '-map', '[a]',
       ...enc, '-movflags', '+faststart', '-t', String(dur), tmp],
     { cwd: work, duration: dur, base, span: 1 - base });
@@ -94,7 +102,7 @@ function createRenderingService({ repo, ffmpeg, transcription, outputDir, source
     }
     await fsp.rm(out, { force: true });
     await fsp.rename(tmp, out);
-    if (draft) { job.draft = { clipId, from: seg.start, at: Date.now() }; return; }
+    if (draft) { job.draft = { clipId, from: window.start, at: Date.now() }; return; }
     const sig = Layout.renderSig(p, clip);
     await repo.update(slug, q => {
       const c = q.clips.find(x => x.id === clipId);

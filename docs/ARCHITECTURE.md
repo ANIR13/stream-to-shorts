@@ -34,7 +34,7 @@ flowchart TD
 | `app/server.js` | Entry point and HTTP | Builds the application (`createApp`), maps each API route to a service, serves static and media files. |
 | `app/src/shared/` | Shared | `errors.js` (HTTP errors, plain-language task errors), `fsutil.js` (JSON files, paths), `validate.js` (safe file names and ids: everything from the browser or a project file passes here), `stats.js` (moving average, robust z-score). |
 | `app/src/infrastructure/` | Infrastructure | `process.js` (running programs, opening folders), `environment.js` (folders, tools, environment), `ffmpeg.js` (**FFmpeg adapter**: the only place that knows how ffmpeg/ffprobe are called), `trash.js` (Recycle Bin / desktop trash). |
-| `app/src/core/` | Core logic, no I/O | `project.js` (defaults, clip numbers, merging browser saves), `schema.js` (project file versions and migrations), `detection.js` (fast highlight scoring), `smart.js` (smart multi-signal scoring, see [DETECTION.md](DETECTION.md)), `captions.js` (word fixes, hint-word echo, whisper parsing, caption lines), `render.js` (subtitle file and filter graph), `upload.js` (upload texts). |
+| `app/src/core/` | Core logic, no I/O | `project.js` (defaults, clip numbers, merging browser saves), `schema.js` (project file versions and migrations), `detection.js` (fast highlight scoring), `smart.js` (smart multi-signal scoring, see [DETECTION.md](DETECTION.md)), `captions.js` (word fixes, hint-word echo, whisper parsing, caption lines), `timeline.js` (**timeline engine**: a short as tracks, compiled to ffmpeg inputs, see below), `render.js` (subtitle file and filter graph), `upload.js` (upload texts). |
 | `app/src/repository/` | Persistence | `projectRepository.js`: projects on disk, per-project locks, revisions. |
 | `app/src/services/` | Application services | `detectionService.js` (analysis, preview copy, suggested clips), `transcriptionService.js` (whisper.cpp, captions), `renderingService.js` (shorts and quick drafts), `exportService.js` (output files, upload texts), `presetService.js`, `jobQueue.js` (one task at a time, cancel, retry, resume after restart). |
 | `app/public/` | Browser | The interface, split by feature (see [Browser interface](#browser-interface)); `layout.js` (9:16 layout maths shared with the renderer), `timing.js` (clip time rules and snap-to-speech, shared with the server), `i18n.js` (French), `index.html`, `styles.css`. |
@@ -49,6 +49,28 @@ flowchart TD
 - **All project writes** go through `repo.update(slug, mutate)`, which serializes writes per project.
 - **Untrusted input:** requests are checked in `server.js` (own page only, see SECURITY.md), file names in `shared/validate.js`, and every project passes through `sanitizeProject` (`core/project.js`) when loaded and saved, so services can trust its values.
 
+## Timeline engine
+
+A short is described as data before anything is rendered (`app/src/core/timeline.js`):
+
+```
+clip (project.json)  --buildTimeline-->  timeline  --compileTimeline-->  { subtitle file, filter graph, extra inputs, seek, duration }
+```
+
+| Track | Kind | From the clip |
+|---|---|---|
+| `video` | Layers of the layout: background (blurred or dark), gameplay, facecam | Layout and style |
+| `images` | Picture overlays (PNG, JPG, WebP from `source/`), position, size, opacity, timing | `clip.images` |
+| `title`, `captions`, `texts` | Rendered by libass: title, word-by-word captions, extra text overlays | Titles, `clip.captions`, `clip.texts` |
+| `stream`, `music` | The recording's sound; a music file (looped, faded, ducked under speech with side-chain compression) | `clip.music` |
+
+- **Cuts** (`clip.cuts`, absolute source times) remove parts of a clip. The kept parts are trimmed and joined in the graph (jump cuts); every timed item (captions, texts, pictures) is moved to the new times, and the source is read only from the first kept moment.
+- **Hidden** tracks are left out of the render; **locked** tracks are an editor setting (the interface refuses changes; timing locks the clip's edges).
+- **Transitions** are the fades at the clip edges.
+- **One description, three readers:** the renderer compiles it, the live preview draws the same overlays, the editor shows the cuts on the timeline.
+- **Compatibility:** a clip without timeline fields compiles to exactly the subtitle file and graph of earlier versions (`tests/unit/timeline.test.js` checks every baseline layout), and its render fingerprint is unchanged.
+- **Adding a track kind:** add it to `buildTimeline`, compile it in `compileTimeline` (with a graph addition in `render.js`), validate its fields in `sanitizeProject`, include it in `Layout.renderSig`'s extras, and test it with the real FFmpeg in `tests/e2e/timeline.test.js`.
+
 ## Browser interface
 
 The interface has no build step. It is split by feature into small files that `index.html` loads in order as plain scripts sharing one global scope; `app.js`, loaded last, starts it.
@@ -56,7 +78,7 @@ The interface has no build step. It is split by feature into small files that `i
 | Folder | Files |
 |---|---|
 | `core/` | `util.js` (DOM helpers, formats, storage), `api.js` (calls to the server), `state.js` (page state `S`, saving), `history.js` (undo / redo), `videos.js` (opening videos, per-video place) |
-| `editor/` | `clip-list.js`, `timeline.js`, `clip-editor.js` (Edit tab, title ideas), `caption-editor.js`, `clip-actions.js` (timing, trim, render, quick draft) |
+| `editor/` | `clip-list.js`, `timeline.js`, `clip-editor.js` (Edit tab, title ideas), `caption-editor.js`, `clip-actions.js` (timing, trim, render, quick draft), `tracks.js` (Tracks tab: cuts, overlays, music, hide / lock) |
 | `preview/` | `player.js`, `preview.js` (live 9:16 preview), `safe-zones.js`, `video-size.js` |
 | `ai/` | `highlights.js` (moment strength, "Why this moment?"), `detect.js` (Auto-detect popover), `captions.js` (Captions & AI tab) |
 | `tasks/` | `queue.js` (polling, batches), `progress.js` (Tasks panel), `notifications.js`, `render-all.js`, `interrupted.js` |
@@ -82,6 +104,7 @@ Each `projects/<video>/project.json` has a `version` field: the **project file f
 |---|---|
 | 1 | First releases (projects without a `version` field count as 1). |
 | 2 | Settings added since then are written into the file: word fixes and hint words, upload hashtags, setup checklist, detection weights and spacing; clips get permanent numbers. |
+| 4 | The timeline: clips may have `cuts`, `texts`, `images`, `music` and `tracks` (hidden / locked). All optional; nothing to fill in. |
 | 3 | Detection settings get the engine (`fast` or `smart`, fast by default) and the smart weights `wA wV wS wE wC`. Smart clips store `scoreEngine` and `scoreReasons`. |
 
 **To change what `project.json` contains:** bump `SCHEMA_VERSION`, add `MIGRATIONS[old]` that upgrades a project in place, add a test in `tests/schema.test.js`, and add a row to the table above. Never edit a migration that was released.

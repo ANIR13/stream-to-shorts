@@ -11,7 +11,7 @@ const { STYLE_DEFAULTS, whisperDefaults, ensureNums } = require('./project');
 const { DETECT_DEFAULTS } = require('./detection');
 const { SMART_DEFAULTS } = require('./smart');
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 const MIGRATIONS = {
   // 1 → 2: projects from before versioned migrations. Settings added since then (hint words and
@@ -33,6 +33,9 @@ const MIGRATIONS = {
   2: p => {
     p.detect = { ...SMART_DEFAULTS, ...(p.detect || {}) };
   },
+  // 3 → 4: the timeline. Clips may now have cuts, text and image overlays, music and per-track
+  // settings (all optional, see core/timeline.js). Nothing to fill in: absent means none.
+  3: () => {},
 };
 
 // Projects saved before the field existed count as version 1.

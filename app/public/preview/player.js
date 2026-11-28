@@ -23,6 +23,7 @@ function onTime() {
 }
 function loop() {
   if (player.paused) return;
+  skipCuts();
   if (S.playUntil != null && player.currentTime >= S.playUntil) {
     const c = selClip();
     if ($('#loopClip').checked && c) seek(c.start); else { player.pause(); S.playUntil = null; }

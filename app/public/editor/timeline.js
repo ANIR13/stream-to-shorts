@@ -64,6 +64,15 @@ function drawTimeline() {
     ctx.font = 'bold 10px Segoe UI'; ctx.fillText('#' + clipNo(c), x0 + 4, top + 4);
     if (active) { ctx.fillRect(x0 - 2, top, 4, bh); ctx.fillRect(x1 - 2, top, 4, bh); }
     else { ctx.fillStyle = 'rgba(255,212,0,.35)'; ctx.fillRect(x0, top, 1.5, bh); ctx.fillRect(x1 - 1.5, top, 1.5, bh); }
+    // parts cut out of the clip (Tracks tab): dark and hatched
+    for (const cut of c.cuts || []) {
+      const a = t2x(Math.max(c.start, cut.start), w), b = t2x(Math.min(c.end, cut.end), w);
+      if (b <= a) continue;
+      ctx.fillStyle = 'rgba(10,10,14,.7)'; ctx.fillRect(a, top + 2, b - a, bh - 2);
+      ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.lineWidth = 1; ctx.beginPath();
+      for (let hx = a - bh; hx < b; hx += 6) { ctx.moveTo(Math.max(a, hx), top + bh - Math.max(0, a - hx)); ctx.lineTo(Math.min(b, hx + bh), top + bh - Math.min(bh, Math.min(b, hx + bh) - hx)); }
+      ctx.stroke();
+    }
   });
   // overlapping footage (red)
   const cs = [...S.p.clips].sort((a, b) => a.start - b.start);
@@ -113,6 +122,7 @@ tl.cv.addEventListener('mousedown', e => {
   const { w } = tlSize(); const x = e.offsetX;
   const hit = e.shiftKey ? { kind: 'ruler' } : tlHit(x, e.offsetY, w);
   if (hit.c && hit.c.id !== S.sel) selectClip(hit.c.id, false);
+  if (hit.c && ['start', 'end', 'clip'].includes(hit.kind) && timingLocked(hit.c)) return;
   tl.drag = { ...hit, x0: x, t0: x2t(x, w), view0: [...S.view], moved: false, orig: hit.c ? { start: hit.c.start, end: hit.c.end } : null };
   if (hit.kind === 'ruler') tl.cv.style.cursor = 'grabbing';
 });

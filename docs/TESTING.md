@@ -46,6 +46,7 @@ Why Node.js 18: Debian 12 and older Kali releases install it with `setup.sh`. No
 | Every layout fits the 1080 × 1920 frame; finished shorts **are** 1080 × 1920 H.264, 30 fps, with sound and the clip's length | `unit/layout-captions.test.js`, `e2e/workflow.test.js` (checks the real file with ffprobe) |
 | Captions are in sync with the audio | `unit/layout-captions.test.js` (whisper timestamps → caption lines → subtitle events), `e2e/workflow.test.js` (beeps at known times are heard within 0.1 s of their caption) |
 | Projects survive restarts, and a crash while saving never damages a project | `integration/recovery.test.js`, `integration/repository.test.js`, `integration/schema.test.js`, `e2e` |
+| Timeline features render correctly with the real FFmpeg: cuts shorten the short and keep sound in sync after the jump, pictures appear at their place, music is heard, hidden tracks are left out; a plain clip compiles to exactly the earlier output | `unit/timeline.test.js`, `e2e/timeline.test.js` |
 | Interrupted renders recover safely: a failed or cancelled render keeps the previous short and leaves no half-written file; after a crash the leftover is removed and the render can be resumed | `integration/recovery.test.js`, `e2e` (cancels a real FFmpeg render) |
 | Missing FFmpeg, whisper or speech model give plain-language errors and startup warnings that say what to do | `integration/missing-tools.test.js` |
 | The core gives the same results as before the modular refactor | `unit/core.test.js` against `tests/fixtures/baseline.json` |

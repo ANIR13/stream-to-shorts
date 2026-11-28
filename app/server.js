@@ -15,7 +15,9 @@ const path = require('path');
 
 const { httpError, friendlyError } = require('./src/shared/errors');
 const { exists, readJSON, inside, slugify } = require('./src/shared/fsutil');
-const { VIDEO_EXT, safeFileName } = require('./src/shared/validate');
+const { VIDEO_EXT, safeFileName, isSafeFileName } = require('./src/shared/validate');
+const { IMAGE_EXT, AUDIO_EXT } = require('./src/core/timeline');
+const IMPORT_EXT = new Set([...VIDEO_EXT, ...IMAGE_EXT, ...AUDIO_EXT]);
 const { openWith, createProcessRunner } = require('./src/infrastructure/process');
 const { createEnvironment } = require('./src/infrastructure/environment');
 const { createFfmpeg } = require('./src/infrastructure/ffmpeg');
@@ -66,7 +68,7 @@ function foreignRequest(req, port) {
   if (origin === 'null' && req.method !== 'GET' && req.method !== 'HEAD') return 'request from an opaque origin';
   return null;
 }
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png', '.svg': 'image/svg+xml', '.mp4': 'video/mp4', '.mkv': 'video/x-matroska', '.webm': 'video/webm', '.mov': 'video/quicktime' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.m4a': 'audio/mp4', '.ogg': 'audio/ogg', '.flac': 'audio/flac', '.opus': 'audio/ogg', '.aac': 'audio/aac', '.svg': 'image/svg+xml', '.mp4': 'video/mp4', '.mkv': 'video/x-matroska', '.webm': 'video/webm', '.mov': 'video/quicktime' };
 
 // ---------- HTTP helpers ----------
 function sendJSON(res, code, obj) {
@@ -181,6 +183,12 @@ function createApp({ root = path.resolve(__dirname, '..'), log = console, limits
         return sendJSON(res, 200, { startedAt: STARTED_AT, gpu: ffmpeg.hardwareName, ffmpeg: tools.FFMPEG !== 'ffmpeg' || null, whisper: transcription.available, models, threads: env.THREADS, sourceDir: paths.SOURCE_DIR, outputDir: paths.OUTPUT_DIR });
       }
       case 'GET /api/videos': return sendJSON(res, 200, await listVideos());
+      case 'GET /api/assets': {
+        // pictures and music in the source folder, for the timeline's image and music tracks
+        const names = (await fsp.readdir(paths.SOURCE_DIR, { withFileTypes: true })).filter(d => d.isFile() && isSafeFileName(d.name)).map(d => d.name);
+        const ext = n => path.extname(n).toLowerCase();
+        return sendJSON(res, 200, { images: names.filter(n => IMAGE_EXT.has(ext(n))).sort(), audio: names.filter(n => AUDIO_EXT.has(ext(n))).sort() });
+      }
       case 'GET /api/project': return sendJSON(res, 200, await repo.open(q.video));
       case 'GET /api/analysis': return sendJSON(res, 200, await repo.readAnalysis(q.slug));
       case 'GET /api/transcript': return sendJSON(res, 200, await repo.readTranscript(q.slug));
@@ -319,8 +327,8 @@ function createApp({ root = path.resolve(__dirname, '..'), log = console, limits
         // (it is not silently "fixed": a name with a folder in it is refused), the size is limited,
         // and enough disk space must stay free. One import at a time.
         const name = String(q.name || '');
-        if (!VIDEO_EXT.has(path.extname(name).toLowerCase())) throw httpError(400, 'Unsupported file type');
-        safeFileName(name, VIDEO_EXT, 'Video name');
+        if (!IMPORT_EXT.has(path.extname(name).toLowerCase())) throw httpError(400, 'Unsupported file type');
+        safeFileName(name, IMPORT_EXT, 'File name');
         const dest = path.join(paths.SOURCE_DIR, name);
         if (!inside(paths.SOURCE_DIR, dest)) throw httpError(400, 'Video name is not valid.');
         if (await exists(dest)) throw httpError(409, 'A video with this name already exists');
@@ -379,6 +387,12 @@ function createApp({ root = path.resolve(__dirname, '..'), log = console, limits
           return serveFile(req, res, path.join(paths.SOURCE_DIR, p.video));
         }
         if (kind === 'draft') return serveFile(req, res, rendering.draftFile(slug, path.basename(name || '')));
+        if (kind === 'asset') {
+          // an image or music file from the source folder (preview of the timeline's tracks)
+          const n = String(slug || '');
+          if (!isSafeFileName(n, new Set([...IMAGE_EXT, ...AUDIO_EXT]))) throw httpError(403, 'Forbidden');
+          return serveFile(req, res, path.join(paths.SOURCE_DIR, n));
+        }
         if (kind === 'output-other') {
           const f = path.join(paths.OUTPUT_DIR, path.basename(slug || ''));
           if (!inside(paths.OUTPUT_DIR, f)) throw httpError(403, 'Forbidden');

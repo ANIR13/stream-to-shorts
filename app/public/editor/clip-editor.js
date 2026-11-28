@@ -3,6 +3,7 @@
 
 function setVal(el, v) { if (document.activeElement !== el) el.value = v; }
 function renderEditor() {
+  if (currentTab() === 'tracks') renderTracksTab();
   const c = selClip();
   $('#editEmpty').classList.toggle('hidden', !!c);
   $('#editForm').classList.toggle('hidden', !c);
