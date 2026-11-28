@@ -17,6 +17,18 @@ for (const f of files) {
   const r = spawnSync(process.execPath, ['--check', f], { encoding: 'utf8' });
   if (r.status !== 0) { bad++; console.error(`✗ ${path.relative(ROOT, f)}\n${r.stderr}`); }
 }
+// The interface files are plain scripts loaded by index.html in order: each must be listed once,
+// and app.js (start-up) last.
+const PUB = path.join(ROOT, 'app', 'public');
+const listed = [...fs.readFileSync(path.join(PUB, 'index.html'), 'utf8').matchAll(/<script src="([^"]+)"/g)].map(m => m[1]);
+const onDisk = find(PUB).map(f => path.relative(PUB, f).split(path.sep).join('/'));
+for (const f of onDisk) {
+  const n = listed.filter(x => x === f).length;
+  if (n !== 1) { bad++; console.error(`✗ app/public/${f} is listed ${n} times in index.html (it must be listed once)`); }
+}
+for (const f of listed) if (!onDisk.includes(f)) { bad++; console.error(`✗ index.html loads ${f}, which does not exist`); }
+if (listed[listed.length - 1] !== 'app.js') { bad++; console.error('✗ app.js (start-up) must be the last script in index.html'); }
+
 // Project rule 1: no npm dependencies.
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 for (const k of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) {

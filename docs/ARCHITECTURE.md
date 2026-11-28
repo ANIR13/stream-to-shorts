@@ -37,7 +37,7 @@ flowchart TD
 | `app/src/core/` | Core logic, no I/O | `project.js` (defaults, clip numbers, merging browser saves), `schema.js` (project file versions and migrations), `detection.js` (fast highlight scoring), `smart.js` (smart multi-signal scoring, see [DETECTION.md](DETECTION.md)), `captions.js` (word fixes, hint-word echo, whisper parsing, caption lines), `render.js` (subtitle file and filter graph), `upload.js` (upload texts). |
 | `app/src/repository/` | Persistence | `projectRepository.js`: projects on disk, per-project locks, revisions. |
 | `app/src/services/` | Application services | `detectionService.js` (analysis, preview copy, suggested clips), `transcriptionService.js` (whisper.cpp, captions), `renderingService.js` (shorts and quick drafts), `exportService.js` (output files, upload texts), `presetService.js`, `jobQueue.js` (one task at a time, cancel, retry, resume after restart). |
-| `app/public/` | Browser | `app.js` (interface), `layout.js` (9:16 layout maths shared with the renderer), `timing.js` (clip time rules and snap-to-speech, shared with the server), `i18n.js` (French), `index.html`, `styles.css`. |
+| `app/public/` | Browser | The interface, split by feature (see [Browser interface](#browser-interface)); `layout.js` (9:16 layout maths shared with the renderer), `timing.js` (clip time rules and snap-to-speech, shared with the server), `i18n.js` (French), `index.html`, `styles.css`. |
 | `tests/` | Tests | `unit/`, `integration/`, `e2e/`, `regression/`: see [TESTING.md](TESTING.md). |
 
 ## Rules of the layers
@@ -48,6 +48,27 @@ flowchart TD
 - **The HTTP layer** only parses requests, calls services and formats responses. API paths, inputs, outputs and status codes are part of the contract with the browser: keep them compatible.
 - **All project writes** go through `repo.update(slug, mutate)`, which serializes writes per project.
 - **Untrusted input:** requests are checked in `server.js` (own page only, see SECURITY.md), file names in `shared/validate.js`, and every project passes through `sanitizeProject` (`core/project.js`) when loaded and saved, so services can trust its values.
+
+## Browser interface
+
+The interface has no build step. It is split by feature into small files that `index.html` loads in order as plain scripts sharing one global scope; `app.js`, loaded last, starts it.
+
+| Folder | Files |
+|---|---|
+| `core/` | `util.js` (DOM helpers, formats, storage), `api.js` (calls to the server), `state.js` (page state `S`, saving), `history.js` (undo / redo), `videos.js` (opening videos, per-video place) |
+| `editor/` | `clip-list.js`, `timeline.js`, `clip-editor.js` (Edit tab, title ideas), `caption-editor.js`, `clip-actions.js` (timing, trim, render, quick draft) |
+| `preview/` | `player.js`, `preview.js` (live 9:16 preview), `safe-zones.js`, `video-size.js` |
+| `ai/` | `highlights.js` (moment strength, "Why this moment?"), `detect.js` (Auto-detect popover), `captions.js` (Captions & AI tab) |
+| `tasks/` | `queue.js` (polling, batches), `progress.js` (Tasks panel), `notifications.js`, `render-all.js`, `interrupted.js` |
+| `settings/` | `layout.js` (Layout tab), `style.js` (Style tab, presets) |
+| `exports/` | `exports.js` (finished shorts, upload texts) |
+| `components/` | `toast.js`, `modal.js`, `tabs.js`, `topbar.js`, `video-menu.js`, `drag-drop.js`, `shortcuts.js`, `language.js` |
+
+Rules:
+
+- **Top-level code in a file may only use what earlier files define.** Functions are called later (events, timers) can use anything. Start-up steps that need several files go in `app.js`. `npm run check` verifies that every file is listed once in `index.html` and `app.js` is last; `tests/e2e/ui.test.js` loads the real page in a headless browser and fails on any script error.
+- **A new file** goes in the folder of its feature and gets a `<script>` tag in `index.html`, after the files it uses.
+- **Next step:** turning these files into ES modules (`import` / `export`) once the shared state is narrowed down; the split already follows module boundaries.
 
 ## Project file versions
 
@@ -75,4 +96,4 @@ npm test          # everything; the end-to-end test is skipped when FFmpeg isn't
 
 ## Next steps
 
-The browser interface (`app/public/app.js`) is still one file; splitting it into modules (timeline, editor, preview, tasks) is a possible follow-up.
+See [ROADMAP.md](../ROADMAP.md).

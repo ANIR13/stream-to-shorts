@@ -7,7 +7,7 @@ Nothing here is a promise or a date: priorities change with feedback. If somethi
 ## Next
 
 - **First tagged release** (1.1.0) with downloadable ZIPs on the Releases page (the release workflow is ready).
-- **Split the interface** (`app/public/app.js`) into modules: timeline, editor, preview, tasks.
+- **ES modules** for the interface (it is now split by feature into plain scripts, see docs/ARCHITECTURE.md).
 
 ## Later
 

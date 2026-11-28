@@ -112,7 +112,10 @@ test('job queue: one at a time, cancel, retry, friendly errors, resume after a r
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 's2s-q-'));
   const queueFile = path.join(root, '.queue.json');
   const order = [];
-  const specFn = spec => async job => { order.push(spec.clipId); if (spec.clipId === 'bad') throw new Error('ENOSPC: no space left'); await sleep(20); };
+  // 'a' runs until the test releases it, so the waiting tasks are known when the saved queue is checked
+  let releaseA;
+  const aGate = new Promise(r => { releaseA = r; });
+  const specFn = spec => async job => { order.push(spec.clipId); if (spec.clipId === 'a') await aGate; if (spec.clipId === 'bad') throw new Error('ENOSPC: no space left'); await sleep(20); };
   const q = createJobQueue({ queueFile, specFn, log: quiet });
   const a = q.addSpec({ type: 'render', slug: 's', clipId: 'a' }, 'A');
   const b = q.addSpec({ type: 'render', slug: 's', clipId: 'bad' }, 'B');
@@ -125,6 +128,7 @@ test('job queue: one at a time, cancel, retry, friendly errors, resume after a r
   const saved = JSON.parse(fs.readFileSync(queueFile, 'utf8'));
   assert.ok(saved.some(x => x.clipId === 'bad') && saved.some(x => x.clipId === 'x24'));
   q.active().filter(j => /^x/.test(j.clipId)).forEach(q.cancel);
+  releaseA();
   await sleep(150);
   assert.deepEqual(order, ['a', 'bad']);
   assert.equal(a.status, 'done');

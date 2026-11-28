@@ -17,6 +17,7 @@ All notable changes to Stream → Shorts are listed here. The format follows [Ke
 - Community files: code of conduct, security policy, support guide, changelog, citation file and roadmap.
 
 ### Changed
+- The interface is split by feature into small files (`core`, `editor`, `preview`, `ai`, `tasks`, `settings`, `exports`, `components`) instead of one 2,200-line script, and is tested in a headless browser. The app serves its pages from its own code folder.
 - The server is split into layers (core logic, services, project repository, FFmpeg adapter). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). The rendered shorts are unchanged.
 - The README has screenshots, badges and a clearer layout.
 
