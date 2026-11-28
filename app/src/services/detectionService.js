@@ -6,6 +6,7 @@ const path = require('path');
 const { round1 } = require('../shared/fsutil');
 const { httpError } = require('../shared/errors');
 const { detectSettings, findCandidates, candidatesToClips, mergeDetected, parseMeta } = require('../core/detection');
+const { smartSettings, findSmartCandidates } = require('../core/smart');
 
 // The preview copy played in the app: 360p (fast to build, light) or 720p (sharper player and 9:16 preview).
 const proxyHeight = p => (Number(p.proxyHeight) === 720 ? 720 : 360);
@@ -67,12 +68,23 @@ function createDetectionService({ repo, ffmpeg, sourceDir }) {
   }
 
   // Suggest clips from the analysis with the given settings; mode 'replace' or 'add'.
+  // settings.engine: 'fast' (sound and action) or 'smart' (also what is said: needs the transcript).
   async function detect(slug, settings, mode) {
     const a = await repo.readAnalysis(slug);
     if (!a) throw httpError(400, 'Analyze the video first');
+    const opts = { ...detectSettings(settings), ...smartSettings(settings) };
+    let fresh;
+    if (opts.engine === 'smart') {
+      const t = await repo.readTranscript(slug);
+      if (!t || !Array.isArray(t.words) || !t.words.length) throw httpError(400, 'Smart detection needs the transcript of the whole stream. Click "Transcribe whole stream" in the Captions & AI tab first, or use Fast detection.');
+      const p = await repo.load(slug);
+      const hints = String(p.whisper.prompt || '').split(/[\s,;]+/).concat((p.whisper.fixes || []).map(f => f.to)).filter(Boolean);
+      const words = t.words.concat((t.events || []).map(ev => ({ w: ev.w, s: ev.s, e: ev.e })));
+      fresh = findSmartCandidates({ rms: a.rms, scene: a.scene, words, hints }, opts);
+    } else fresh = findCandidates(a.rms, a.scene, opts);
     return repo.update(slug, q => {
-      q.detect = detectSettings(settings);
-      q.clips = mergeDetected(q.clips, candidatesToClips(findCandidates(a.rms, a.scene, q.detect)), mode);
+      q.detect = opts;
+      q.clips = mergeDetected(q.clips, candidatesToClips(fresh), mode);
     });
   }
 

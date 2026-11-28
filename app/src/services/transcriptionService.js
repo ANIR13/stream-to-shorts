@@ -5,7 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const Layout = require('../../public/layout.js');
 const { exists, readJSON, writeJSON } = require('../shared/fsutil');
-const { whisperKey, applyFixes, dropEcho, parseWhisper, chunkWords, keepChunks } = require('../core/captions');
+const { whisperKey, applyFixes, dropEcho, parseWhisper, parseWhisperEvents, chunkWords, keepChunks } = require('../core/captions');
 
 const shortHash = s => crypto.createHash('md5').update(s).digest('hex').slice(0, 8);
 
@@ -15,7 +15,9 @@ function createTranscriptionService({ repo, ffmpeg, runner, whisperPath, modelsD
 
   // Words spoken between start and end (seconds). Uses the whole-stream transcript when it covers
   // the range, else a per-range cache, else runs whisper on that part of the audio.
-  async function transcribeRange(job, slug, start, end, w, base = 0, span = 1) {
+  const transcribeRange = (...args) => transcribeRangeFull(...args).then(r => r.words);
+  // Same, with whisper's non-speech tags (laughter, applause…): { words, events }.
+  async function transcribeRangeFull(job, slug, start, end, w, base = 0, span = 1) {
     if (!whisperPath) throw new Error(isWin ? 'whisper-cli.exe not found in tools/whisper' : 'whisper-cli not found (tools/whisper/whisper-cli or on the PATH)');
     const model = path.join(modelsDir, w.model);
     if (!(await exists(model))) throw new Error(`Speech model not found: tools/whisper/models/${w.model}`);
@@ -25,11 +27,11 @@ function createTranscriptionService({ repo, ffmpeg, runner, whisperPath, modelsD
 
     const full = await readJSON(path.join(dir, 'full.json'), null);
     if (full && full.key === key && start >= full.start && end <= full.end) {
-      return full.words.filter(x => x.e > start && x.s < end);
+      return { words: full.words.filter(x => x.e > start && x.s < end), events: (full.events || []).filter(x => x.e > start && x.s < end) };
     }
     const name = `r_${Math.round(start * 10)}_${Math.round(end * 10)}_${shortHash(key)}`;
     const cached = await readJSON(path.join(dir, name + '.json'), null);
-    if (cached) return cached.words;
+    if (cached) return { words: cached.words, events: cached.events || [] };
 
     const p = await repo.load(slug);
     const src = path.join(sourceDir, p.video);
@@ -52,10 +54,11 @@ function createTranscriptionService({ repo, ffmpeg, runner, whisperPath, modelsD
     const raw = await fsp.readFile(path.join(dir, name + '.w.json'));
     const j = JSON.parse(raw.toString('utf8'));
     const words = parseWhisper(j, start);
-    await writeJSON(path.join(dir, name + '.json'), { key, start, end, language: j.result && j.result.language, words });
+    const events = parseWhisperEvents(j, start);
+    await writeJSON(path.join(dir, name + '.json'), { key, start, end, language: j.result && j.result.language, words, events });
     await fsp.unlink(path.join(dir, name + '.wav')).catch(() => {});
     await fsp.unlink(path.join(dir, name + '.w.json')).catch(() => {});
-    return words;
+    return { words, events };
   }
 
   // Caption lines for one clip.
@@ -92,8 +95,9 @@ function createTranscriptionService({ repo, ffmpeg, runner, whisperPath, modelsD
   // Transcribe the whole recording once (makes every clip's captions instant, enables search).
   async function transcribeAll(job, slug) {
     const p = await repo.load(slug);
-    const words = dropEcho(await transcribeRange(job, slug, 0, p.meta.duration, p.whisper), p.whisper.prompt);
-    await writeJSON(repo.fileIn(slug, 'transcripts', 'full.json'), { key: whisperKey(p.whisper), start: 0, end: p.meta.duration, words });
+    const r = await transcribeRangeFull(job, slug, 0, p.meta.duration, p.whisper);
+    const words = dropEcho(r.words, p.whisper.prompt);
+    await writeJSON(repo.fileIn(slug, 'transcripts', 'full.json'), { key: whisperKey(p.whisper), start: 0, end: p.meta.duration, words, events: r.events });
   }
 
   return { available, transcribeRange, captionClip, transcribeAll };

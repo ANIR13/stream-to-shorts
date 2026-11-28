@@ -5,6 +5,8 @@ All notable changes to Stream → Shorts are listed here. The format follows [Ke
 ## [Unreleased]
 
 ### Added
+- **Smart detection** (optional, offline): a multi-signal score, Score = wA·A + wV·V + wS·S + wE·E + wC·C, combining audio excitement, visual activity, what is said (gaming events, insights, questions, hint words, topic words), emotion (laughter, excitement, surprise, frustration, enthusiasm) and context (complete sentences, question and answer, setup and punchline, story). It uses the transcript of the whole stream, with English and French word lists; the fast engine stays the default. Adjustable weights, reasons shown in "Why this moment?", clips that start and end on pauses. Whisper's laughter tags are kept for it. See [docs/DETECTION.md](docs/DETECTION.md).
+- Project file format 3: detection settings store the engine and the five weights.
 - **Preview quality** option per video: 360p (fast) or 720p (sharp) preview copy.
 - **Explainable highlight scoring:** each suggested clip shows why it was picked (loudness, peaks, on-screen action), and the weights and spacing can be adjusted per video.
 - **Project file versions:** `project.json` now has a format number. Older projects are upgraded automatically, with the original kept as `project.v<N>.backup.json`; projects from a newer version of the app are refused instead of overwritten.

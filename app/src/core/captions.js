@@ -96,6 +96,18 @@ function parseWhisper(j, offset) {
   return words;
 }
 
+// Non-speech tags whisper writes in brackets, like "(laughs)" or "[LAUGHTER]" -> [{ w, s, e }] in seconds
+// from `offset`. They are not captions; smart detection uses them as emotion cues.
+function parseWhisperEvents(j, offset) {
+  const out = [];
+  for (const seg of j.transcription || []) {
+    const text = String(seg.text || '').replace(/\uFFFD/g, '').trim();
+    if (!/^[\[(*].*[\])*]$/.test(text) || text.length > 40) continue;
+    out.push({ w: text.toLowerCase(), s: Math.round((offset + seg.offsets.from / 1000) * 100) / 100, e: Math.round((offset + seg.offsets.to / 1000) * 100) / 100 });
+  }
+  return out;
+}
+
 // Words -> caption lines of at most maxWords, breaking at pauses and punctuation.
 function chunkWords(words, maxWords) {
   const chunks = [];
@@ -127,4 +139,4 @@ function keepChunks(chunks, start, end) {
   return out;
 }
 
-module.exports = { whisperKey, normFixes, applyFixes, echoMask, dropEcho, stripEchoChunks, fixChunks, parseWhisper, chunkWords, keepChunks };
+module.exports = { whisperKey, normFixes, applyFixes, echoMask, dropEcho, stripEchoChunks, fixChunks, parseWhisper, parseWhisperEvents, chunkWords, keepChunks };

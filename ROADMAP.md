@@ -18,6 +18,9 @@ Nothing here is a promise or a date: priorities change with feedback. If somethi
 
 ## Ideas being explored
 
+- A **local language model** (llama.cpp) as an extra signal for smart detection: rating what is said, beyond word lists. See [docs/DETECTION.md](docs/DETECTION.md#extending-it).
+- Game-specific events from the picture (kill feed, victory screen) and emotion from the voice itself.
+
 - Automatic face tracking for the facecam box.
 - Speaker-aware captions for streams with several voices.
 - A packaged desktop build that doesn't need Node.js installed.

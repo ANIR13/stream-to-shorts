@@ -40,6 +40,7 @@ Stream → Shorts finds the strongest moments of a stream (loudness + on-screen 
 <td width="62%" valign="top">
 
 - **Finds the best moments** automatically from loudness and scene changes; add or adjust clips on a timeline.
+- **Smart detection** (optional) also listens to what is said: jokes and laughter, gaming moments, explanations, questions and answers, even quiet ones, with a plain-language "why this moment?". See [how detection works](docs/DETECTION.md).
 - **Vertical 9:16 layouts:** facecam + gameplay, gameplay only or facecam only, with a blurred background, title, progress bar and loudness normalisation.
 - **Animated captions** with word-by-word highlight, generated offline with [whisper.cpp](https://github.com/ggml-org/whisper.cpp). Fix words once for the whole video, tell the AI which names and jargon to expect, edit any line by hand.
 - **Never cut mid-word:** clip edges snap to pauses in speech.

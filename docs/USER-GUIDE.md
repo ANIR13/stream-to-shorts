@@ -118,6 +118,17 @@ The **⋯** button next to the video list opens this video's project or output f
 - Whisper models live in `tools/whisper/models/` (`setup.bat` / `setup.sh` download `ggml-small.bin`). For better accuracy, add `ggml-medium.bin` or `ggml-large-v3.bin` from https://huggingface.co/ggerganov/whisper.cpp. Bigger models are slower.
 - For Arabic captions, pick **Arial** or **Tahoma** as the caption font, because Impact has no Arabic letters.
 
+## Smart detection
+
+**Auto-detect** has two engines:
+
+- **Fast** (default): the loudest, most action-packed moments. Instant, needs only *Analyze video*.
+- **Smart**: also listens to what is said. It finds jokes and laughter, gaming moments (kills, clutches, wins), explanations and facts, questions with their answers, and quiet moments where something interesting is said. Clips start and end on complete sentences.
+
+Smart detection needs the transcript of the whole stream: click **Transcribe whole stream** in *Captions & AI* once (it takes a while), then choose **Smart** in the Auto-detect popover. Words to expect and word fixes improve it.
+
+Select a clip to see **Why this moment?**: the share of each signal and the reasons, with times you can click. Under *Advanced* you can change how much each signal counts; the defaults are starting points, so adjust them to your streams. Details and limits: [how detection works](DETECTION.md).
+
 ## Sharing projects safely
 
 You can copy a project folder (`projects/<video name>/`) to another computer together with its video. When you receive one from someone else:
