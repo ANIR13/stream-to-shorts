@@ -30,7 +30,18 @@ function drawTimeline() {
   }
   // loudness
   const top = 16, bh = h - top - 4;
-  if (S.loudNorm) {
+  // zoomed in (under 10 minutes on screen): the detailed waveform, loaded on first use
+  if (span < 600 && S.p.analyzed) ensureWaveform();
+  if (S.wave && span < 600) {
+    const W = S.wave, k = 1 / W.step;
+    ctx.fillStyle = '#4a5368';
+    for (let x = 0; x < w; x++) {
+      const a = Math.floor(x2t(x, w) * k), b = Math.max(a + 1, Math.floor(x2t(x + 1, w) * k));
+      let m = 0; for (let i = a; i < b && i < W.data.length; i++) if (W.data[i] > m) m = W.data[i];
+      const y = bh * 0.9 * m / 255;
+      ctx.fillRect(x, top + (bh - y) / 2, 1, Math.max(1, y));
+    }
+  } else if (S.loudNorm) {
     const L = S.loudNorm, sc = S.analysis.scene;
     ctx.fillStyle = '#3b4252';
     for (let x = 0; x < w; x++) {
@@ -208,6 +219,7 @@ function speechSegs() {
   if (!S.p) return [];
   const key = S.p.slug + ':' + (S.transcript ? S.transcript.words.length : 0) + ':' + S.p.clips.map(c => (c.captions ? c.captions.length : 0) + '/' + (c.captionsVer || 0) + '/' + (c.captionsRange || []).join('-')).join(',');
   if (speechCache.key === key) return speechCache.segs;
+  if (!S.transcript) ensureTranscript();
   let words = S.transcript ? S.transcript.words.slice() : [];
   for (const c of S.p.clips) for (const ch of c.captions || []) for (const w of ch.words || []) words.push(w);
   const segs = Timing.speechSegments(words); // [start, end, last word]

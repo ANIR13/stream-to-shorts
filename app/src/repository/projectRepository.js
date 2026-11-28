@@ -73,6 +73,7 @@ function createProjectRepository({ projectsDir, sourceDir, probe, outputDir = nu
       p.updated = Date.now();
       delete p.hasProxy; // computed on every load, never stored
       for (const c of p.clips) delete c.outputMissing;
+      delete p.sourceChanged; // computed when a video is opened, never stored
       await writeJSON(projFile(slug), p);
       return load(slug);
     });

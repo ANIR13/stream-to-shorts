@@ -1,17 +1,44 @@
 'use strict';
-// Job queue: long tasks (analysis, captions, renders…) run one at a time, can be cancelled and
-// retried, and the queue is saved so tasks interrupted by closing the app can be resumed.
+// Job queue: long tasks (analysis, captions, renders…) run in order, can be cancelled and retried, and
+// the queue is saved so tasks interrupted by closing the app can be resumed.
+//
+// Concurrency: up to maxParallel "units" of work run at once (1 = one task at a time, the default on
+// small computers). Two rules keep parallel tasks from corrupting each other's files:
+//   - locks: tasks that touch the same thing (a clip, a video's analysis, preview copy, transcript or
+//     waveform) never run at the same time; the next independent task starts instead
+//   - weight: speech recognition uses every core, so it always runs alone (weight = everything);
+//     analysis counts double (it runs parts in parallel itself)
+// Project files stay protected by the repository's per-project write lock.
 const fs = require('fs');
 const { friendlyError } = require('../shared/errors');
 
 const isActive = j => j.status === 'queued' || j.status === 'running';
 const publicJob = ({ child, fn, ...rest }) => rest;
 
-// queueFile: where waiting/running tasks are saved; specFn(spec) -> async (job) => {...} for a task spec.
-function createJobQueue({ queueFile, specFn, log = console }) {
+// What a task touches (tasks sharing one of these never run together).
+function locksOf(job) {
+  const s = job.slug, c = job.clipId;
+  switch (job.type) {
+    case 'analyze': return [`analysis:${s}`, `proxy:${s}`];
+    case 'proxy': return [`proxy:${s}`];
+    case 'waveform': return [`waveform:${s}`];
+    case 'transcribe': return [`transcript:${s}`];
+    case 'captions': return [`clip:${s}:${c}`, `transcript:${s}`];
+    case 'render': return [`clip:${s}:${c}`];
+    case 'draft': return [`draft:${s}:${c}`];
+    default: return [`task:${job.type}:${s}`];
+  }
+}
+const weightOf = job => (job.type === 'transcribe' || job.type === 'captions' ? Infinity : job.type === 'analyze' ? 2 : 1);
+
+// queueFile: where waiting/running tasks are saved; specFn(spec) -> async (job) => {...} for a task spec;
+// maxParallel: work units that may run at once (see above).
+function createJobQueue({ queueFile, specFn, log = console, maxParallel = 1 }) {
   const jobs = [];
   const queue = [];
-  let running = null, jobSeq = 0;
+  const running = new Set();
+  let jobSeq = 0;
+  let limit = Math.max(1, Math.round(maxParallel) || 1);
   // Tasks that were still waiting or running when the app last closed (offered for resume in the UI).
   let interrupted = (() => { try { return JSON.parse(fs.readFileSync(queueFile, 'utf8')).filter(x => x && x.type && x.slug); } catch { return []; } })();
 
@@ -46,11 +73,25 @@ function createJobQueue({ queueFile, specFn, log = console }) {
   // Queue a task described by a spec ({ type, slug, clipId?, from? }); specs can be saved and resumed.
   const addSpec = (spec, label) => add(spec.type, label, spec.slug, specFn(spec), { clipId: spec.clipId, spec });
 
-  async function pump() {
-    if (running || !queue.length) return;
-    const { job, fn } = queue.shift();
-    if (job.cancelled) { job.status = 'cancelled'; return pump(); }
-    running = job;
+  // Start every waiting task that fits: in order, skipping (for now) tasks whose locks are taken.
+  function pump() {
+    for (let i = 0; i < queue.length;) {
+      const { job, fn } = queue[i];
+      if (job.cancelled) { job.status = 'cancelled'; job.finished = Date.now(); queue.splice(i, 1); continue; }
+      if (!canStart(job)) { i++; continue; }
+      queue.splice(i, 1);
+      run(job, fn);
+    }
+  }
+  function canStart(job) {
+    if (!running.size) return true;
+    const used = [...running].reduce((n, j) => n + weightOf(j), 0);
+    if (used + weightOf(job) > limit) return false;
+    const taken = new Set([...running].flatMap(locksOf));
+    return !locksOf(job).some(l => taken.has(l));
+  }
+  async function run(job, fn) {
+    running.add(job);
     job.status = 'running';
     job.started = Date.now();
     try {
@@ -63,16 +104,19 @@ function createJobQueue({ queueFile, specFn, log = console }) {
       log.error(`[job ${job.id}] ${e.message}`);
     }
     job.finished = Date.now();
-    running = null;
+    running.delete(job);
     persist();
     pump();
   }
+  // Change how many work units may run at once (takes effect for the next tasks).
+  function setConcurrency(n) { limit = Math.max(1, Math.min(8, Math.round(n) || 1)); pump(); return limit; }
 
   function cancel(job) {
     if (!job || !isActive(job)) return;
     job.cancelled = true;
     if (job.status === 'queued') { job.status = 'cancelled'; job.finished = Date.now(); }
     if (job.child) job.child.kill();
+    for (const c of job.children || []) { try { c.kill(); } catch { /* gone */ } }
     persist();
   }
 
@@ -106,7 +150,8 @@ function createJobQueue({ queueFile, specFn, log = console }) {
   function forgetInterrupted(slug) { interrupted = interrupted.filter(x => x.slug !== slug); persist(); }
 
   return {
-    jobs, add, addSpec, cancel, retry, clearFinished, takeInterrupted, forgetInterrupted,
+    jobs, add, addSpec, cancel, retry, clearFinished, takeInterrupted, forgetInterrupted, setConcurrency,
+    get concurrency() { return limit; },
     get interrupted() { return interrupted; },
     saved: () => writing, // resolves once the latest queue save is on disk
     find: id => jobs.find(j => j.id === id),
@@ -114,4 +159,4 @@ function createJobQueue({ queueFile, specFn, log = console }) {
   };
 }
 
-module.exports = { createJobQueue, isActive, publicJob };
+module.exports = { createJobQueue, isActive, publicJob, locksOf, weightOf };

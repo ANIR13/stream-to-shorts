@@ -26,6 +26,9 @@ const { clipName } = require('./src/core/project');
 const { stripEchoChunks, fixChunks } = require('./src/core/captions');
 const { createProjectRepository } = require('./src/repository/projectRepository');
 const { createDetectionService } = require('./src/services/detectionService');
+const { createStorageService } = require('./src/services/storageService');
+const { fingerprint, sameContent } = require('./src/infrastructure/fingerprint');
+const os = require('os');
 const { createTranscriptionService } = require('./src/services/transcriptionService');
 const { createRenderingService } = require('./src/services/renderingService');
 const { createExportService } = require('./src/services/exportService');
@@ -112,7 +115,13 @@ function createApp({ root = path.resolve(__dirname, '..'), log = console, limits
   const ffmpeg = createFfmpeg({ ffmpegPath: tools.FFMPEG, ffprobePath: tools.FFPROBE, runner });
   const trash = createTrash({ root, runner });
   const repo = createProjectRepository({ projectsDir: paths.PROJECTS_DIR, sourceDir: paths.SOURCE_DIR, outputDir: paths.OUTPUT_DIR, probe: src => ffmpeg.probe(src) });
-  const detection = createDetectionService({ repo, ffmpeg, sourceDir: paths.SOURCE_DIR });
+  // How much may run at once on this computer (Tasks → "at once"; saved in projects/settings.json).
+  const cores = os.cpus().length, memGB = os.totalmem() / 1073741824;
+  const AUTO_PARALLEL = cores >= 16 && memGB >= 16 ? 3 : cores >= 8 && memGB >= 8 ? 2 : 1;
+  const settingsFile = path.join(paths.PROJECTS_DIR, 'settings.json');
+  const readSettings = () => { try { return JSON.parse(fs.readFileSync(settingsFile, 'utf8')) || {}; } catch { return {}; } };
+  const detection = createDetectionService({ repo, ffmpeg, sourceDir: paths.SOURCE_DIR, fingerprint, parallelParts: Math.max(1, Math.min(3, Math.floor(cores / 4))) });
+  const storage = createStorageService({ repo, projectsDir: paths.PROJECTS_DIR, log });
   const transcription = createTranscriptionService({ repo, ffmpeg, runner, whisperPath: tools.WHISPER, modelsDir: paths.MODELS_DIR, threads: env.WHISPER_THREADS, sourceDir: paths.SOURCE_DIR, isWin: env.IS_WIN });
   const rendering = createRenderingService({ repo, ffmpeg, transcription, outputDir: paths.OUTPUT_DIR, sourceDir: paths.SOURCE_DIR, log });
   const exporting = createExportService({ repo, outputDir: paths.OUTPUT_DIR, trash, rendering });
@@ -124,12 +133,15 @@ function createApp({ root = path.resolve(__dirname, '..'), log = console, limits
       case 'draft': return j => rendering.render(j, spec.slug, spec.clipId, { from: spec.from });
       case 'captions': return j => transcription.captionClip(j, spec.slug, spec.clipId);
       case 'transcribe': return j => transcription.transcribeAll(j, spec.slug);
-      case 'analyze': return j => detection.analyze(j, spec.slug);
+      // after an analysis, the detailed waveform is built in the background
+      case 'analyze': return async j => { await detection.analyze(j, spec.slug); enqueueSoon({ type: 'waveform', slug: spec.slug }, 'Waveform'); };
+      case 'waveform': return j => detection.waveform(j, spec.slug);
       case 'proxy': return j => detection.buildProxy(j, spec.slug);
       default: throw new Error('Unknown task type ' + spec.type);
     }
   };
-  const queue = createJobQueue({ queueFile: path.join(paths.PROJECTS_DIR, '.queue.json'), specFn, log });
+  const queue = createJobQueue({ queueFile: path.join(paths.PROJECTS_DIR, '.queue.json'), specFn, log, maxParallel: Number(readSettings().maxParallel) || AUTO_PARALLEL });
+  const enqueueSoon = (spec, label) => setImmediate(() => { try { if (!queue.active().some(j => j.type === spec.type && j.slug === spec.slug)) queue.addSpec(spec, label); } catch (e) { log.error(e.message); } });
   // Add a task, unless the list is already full.
   function enqueue(spec, label) {
     if (queue.active().length >= LIMITS.maxQueued) throw httpError(429, `There are already ${LIMITS.maxQueued} tasks waiting. Let some finish or cancel them, then try again.`);
@@ -152,7 +164,10 @@ function createApp({ root = path.resolve(__dirname, '..'), log = console, limits
     const out = path.join(dir, `${Math.round(t * 10)}_${w}.jpg`);
     if (await exists(out)) return out;
     const p = await repo.load(slug);
-    await withFrameSlot(() => ffmpeg.run(null, ['-hide_banner', '-v', 'error', '-y', '-ss', String(t), '-i', path.join(paths.SOURCE_DIR, p.video),
+    // the small preview copy decodes much faster than a long full-size recording
+    const proxy = repo.fileIn(slug, 'proxy.mp4');
+    const fromProxy = p.hasProxy && w <= Math.round((p.proxyBuiltHeight || 360) * 16 / 9) && !p.sourceChanged;
+    await withFrameSlot(() => ffmpeg.run(null, ['-hide_banner', '-v', 'error', '-y', '-ss', String(t), '-i', fromProxy ? proxy : path.join(paths.SOURCE_DIR, p.video),
       '-frames:v', '1', '-vf', `scale=${w}:-2`, '-q:v', '4', out]));
     return out;
   }
@@ -190,8 +205,30 @@ function createApp({ root = path.resolve(__dirname, '..'), log = console, limits
         const ext = n => path.extname(n).toLowerCase();
         return sendJSON(res, 200, { images: names.filter(n => IMAGE_EXT.has(ext(n))).sort(), audio: names.filter(n => AUDIO_EXT.has(ext(n))).sort() });
       }
-      case 'GET /api/project': return sendJSON(res, 200, await repo.open(q.video));
+      case 'GET /api/project': {
+        const p = await repo.open(q.video);
+        // the recording under this name was replaced since it was analyzed (caches are stale)
+        if (p.sourceFingerprint) {
+          const now = await fingerprint(path.join(paths.SOURCE_DIR, p.video)).catch(() => null);
+          if (now && !sameContent(now, p.sourceFingerprint)) p.sourceChanged = true;
+        }
+        return sendJSON(res, 200, p);
+      }
       case 'GET /api/analysis': return sendJSON(res, 200, await repo.readAnalysis(q.slug));
+      case 'GET /api/waveform': return sendJSON(res, 200, await readJSON(repo.fileIn(q.slug, 'waveform.json'), null));
+      case 'GET /api/storage': return sendJSON(res, 200, await storage.usage(q.slug));
+      case 'POST /api/storage/clean': {
+        const b = await readBody(req);
+        if (queue.active().some(j => j.slug === b.slug)) throw httpError(409, 'Wait until the tasks of this video are finished.');
+        return sendJSON(res, 200, { freed: await storage.clean(b.slug, b.kinds), usage: await storage.usage(b.slug) });
+      }
+      case 'GET /api/settings': return sendJSON(res, 200, { maxParallel: queue.concurrency, autoParallel: AUTO_PARALLEL, cores, memoryGB: Math.round(memGB) });
+      case 'POST /api/settings': {
+        const b = await readBody(req);
+        const n = queue.setConcurrency(Number(b.maxParallel) || AUTO_PARALLEL);
+        fs.writeFileSync(settingsFile, JSON.stringify({ ...readSettings(), maxParallel: n }, null, 2));
+        return sendJSON(res, 200, { maxParallel: n, autoParallel: AUTO_PARALLEL, cores, memoryGB: Math.round(memGB) });
+      }
       case 'GET /api/transcript': return sendJSON(res, 200, await repo.readTranscript(q.slug));
       case 'POST /api/project': {
         const b = await readBody(req);
@@ -428,6 +465,7 @@ function createApp({ root = path.resolve(__dirname, '..'), log = console, limits
       log.log(`  ffmpeg: ${tools.FFMPEG} (v${ffmpeg.major}) · speech recognition: ${tools.WHISPER || 'not installed'}\n`);
       for (const m of env.missingTools()) log.log(`  ! ${m}\n`);
       // Half-written shorts left by a render that was running when the app was closed or crashed.
+      storage.autoClean().catch(e => log.error(e));
       rendering.cleanupPartial().then(n => { if (n) log.log(`  Removed ${n} unfinished render file(s) from the last session.\n`); }, e => log.error(e));
       if (open) openWith(url);
       resolve(server);
@@ -437,10 +475,12 @@ function createApp({ root = path.resolve(__dirname, '..'), log = console, limits
   // Stop the running tool (ffmpeg / whisper) when the app is closed, so nothing keeps working,
   // or writing files, in the background. Tasks that were waiting stay saved for "Resume".
   function stopTools() {
-    for (const j of queue.jobs) if (j.child) { try { j.child.kill(); } catch { /* already gone */ } }
+    for (const j of queue.jobs) {
+      for (const c of [j.child, ...(j.children || [])]) if (c) { try { c.kill(); } catch { /* already gone */ } }
+    }
   }
 
-  return { env, repo, ffmpeg, detection, transcription, rendering, exporting, presets, queue, server, listen, handleApi, stopTools, limits: LIMITS };
+  return { env, repo, ffmpeg, detection, transcription, rendering, exporting, presets, storage, queue, server, listen, handleApi, stopTools, limits: LIMITS };
 }
 
 if (require.main === module) {

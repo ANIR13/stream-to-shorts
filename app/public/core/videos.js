@@ -53,7 +53,12 @@ async function openVideo(file) {
   S.view = ui && Array.isArray(ui.view) && ui.view[1] > ui.view[0] && ui.view[1] <= dur + 1 ? ui.view : [0, dur];
   S.sel = ui && p.clips.some(c => c.id === ui.sel) ? ui.sel : (p.clips[0]?.id || null);
   const t0 = ui && Number.isFinite(ui.t) ? ui.t : (p.clips.find(c => c.id === S.sel)?.start || 0);
-  await Promise.all([loadAnalysis(), loadTranscript()]);
+  // the full transcript can be several MB for a long stream: it loads in the background (ensureTranscript)
+  S.transcript = null; S.transcriptLoad = null; S.wave = null; S.waveLoad = null;
+  await loadAnalysis();
+  setTimeout(() => { if (S.p && S.p.slug === p.slug) ensureTranscript(); }, 1500);
+  if (p.sourceChanged) showBanner('srcchanged', 'warn', tr('This video file was replaced since it was analyzed. Analyze it again to update the preview, the loudness and the suggestions.'), [[tr('Analyze video'), () => $('#btnAnalyze').click()]]);
+  else hideBanner('srcchanged');
   setPlayerSource(true);
   player.addEventListener('loadedmetadata', () => seek(t0), { once: true });
   switchTab(ui && ui.tab ? ui.tab : 'edit');
@@ -106,7 +111,28 @@ async function loadAnalysis() {
   }
 }
 async function loadTranscript() {
-  S.transcript = await api(`/api/transcript?slug=${enc(slug())}`).catch(() => null);
+  S.transcriptLoad = null;
+  return ensureTranscript();
+}
+// The whole-stream transcript, loaded once per video when something needs it (search, snapping,
+// smart detection, removing pauses) or shortly after the video opens.
+function ensureTranscript() {
+  if (!S.p) return Promise.resolve(null);
+  const sl = S.p.slug;
+  if (!S.transcriptLoad) S.transcriptLoad = api(`/api/transcript?slug=${enc(sl)}`).catch(() => null).then(t => { if (S.p && S.p.slug === sl) { S.transcript = t; if (t) { drawTimeline(); if (currentTab() === 'captions') renderCaptionsTab(); } } return t; });
+  return S.transcriptLoad;
+}
+// The detailed waveform (0.1 s steps), loaded the first time the timeline is zoomed in.
+function ensureWaveform() {
+  if (!S.p || S.waveLoad) return;
+  const sl = S.p.slug;
+  S.waveLoad = api(`/api/waveform?slug=${enc(sl)}`).catch(() => null).then(w => {
+    if (!w || !S.p || S.p.slug !== sl) return;
+    const bin = atob(w.data), a = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+    S.wave = { step: w.step, data: a };
+    drawTimeline();
+  });
 }
 function setPlayerSource(force) {
   const src = S.p.hasProxy ? `/media/proxy/${enc(slug())}?v=${S.p.proxyVer || 0}` : `/media/source/${enc(slug())}`;

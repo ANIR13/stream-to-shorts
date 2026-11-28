@@ -5,6 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const Layout = require('../../public/layout.js');
 const { exists, readJSON, writeJSON } = require('../shared/fsutil');
+const { sameContent } = require('../infrastructure/fingerprint');
 const { whisperKey, applyFixes, dropEcho, parseWhisper, parseWhisperEvents, chunkWords, keepChunks } = require('../core/captions');
 
 const shortHash = s => crypto.createHash('md5').update(s).digest('hex').slice(0, 8);
@@ -26,12 +27,14 @@ function createTranscriptionService({ repo, ffmpeg, runner, whisperPath, modelsD
     const key = whisperKey(w);
 
     const full = await readJSON(path.join(dir, 'full.json'), null);
-    if (full && full.key === key && start >= full.start && end <= full.end) {
+    const fpNow = (await repo.load(slug)).sourceFingerprint;
+    const sameFile = t => !t || !t.fingerprint || !fpNow || sameContent(t.fingerprint, fpNow);   // a replaced recording needs new words
+    if (full && full.key === key && sameFile(full) && start >= full.start && end <= full.end) {
       return { words: full.words.filter(x => x.e > start && x.s < end), events: (full.events || []).filter(x => x.e > start && x.s < end) };
     }
     const name = `r_${Math.round(start * 10)}_${Math.round(end * 10)}_${shortHash(key)}`;
     const cached = await readJSON(path.join(dir, name + '.json'), null);
-    if (cached) return { words: cached.words, events: cached.events || [] };
+    if (cached && sameFile(cached)) return { words: cached.words, events: cached.events || [] };
 
     const p = await repo.load(slug);
     const src = path.join(sourceDir, p.video);
@@ -55,7 +58,7 @@ function createTranscriptionService({ repo, ffmpeg, runner, whisperPath, modelsD
     const j = JSON.parse(raw.toString('utf8'));
     const words = parseWhisper(j, start);
     const events = parseWhisperEvents(j, start);
-    await writeJSON(path.join(dir, name + '.json'), { key, start, end, language: j.result && j.result.language, words, events });
+    await writeJSON(path.join(dir, name + '.json'), { key, start, end, language: j.result && j.result.language, words, events, fingerprint: fpNow || null });
     await fsp.unlink(path.join(dir, name + '.wav')).catch(() => {});
     await fsp.unlink(path.join(dir, name + '.w.json')).catch(() => {});
     return { words, events };
@@ -97,7 +100,7 @@ function createTranscriptionService({ repo, ffmpeg, runner, whisperPath, modelsD
     const p = await repo.load(slug);
     const r = await transcribeRangeFull(job, slug, 0, p.meta.duration, p.whisper);
     const words = dropEcho(r.words, p.whisper.prompt);
-    await writeJSON(repo.fileIn(slug, 'transcripts', 'full.json'), { key: whisperKey(p.whisper), start: 0, end: p.meta.duration, words, events: r.events });
+    await writeJSON(repo.fileIn(slug, 'transcripts', 'full.json'), { key: whisperKey(p.whisper), start: 0, end: p.meta.duration, words, events: r.events, fingerprint: p.sourceFingerprint || null });
   }
 
   return { available, transcribeRange, captionClip, transcribeAll };

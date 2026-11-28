@@ -8,6 +8,7 @@ function switchTab(name) {
   if (name === 'layout') requestAnimationFrame(drawLayoutCanvas);
   if (name === 'exports') loadExports();
   if (name === 'tracks') renderTracksTab();
+  if (name === 'captions') ensureTranscript();
 }
 $$('.tabs button').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
 // Arrow keys move between tabs (standard tab-list behaviour).

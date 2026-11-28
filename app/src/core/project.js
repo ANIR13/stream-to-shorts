@@ -141,6 +141,7 @@ function sanitizeProject(p) {
   if (!p || typeof p !== 'object') throw httpError(422, 'This project file is not valid.');
   if (!isSafeFileName(p.video, VIDEO_EXT)) throw httpError(422, 'This project file is not valid: its video name points outside the source folder.');
   const meta = p.meta = p.meta && typeof p.meta === 'object' ? p.meta : {};
+  if (p.sourceFingerprint != null && !(typeof p.sourceFingerprint === 'string' && /^[a-z0-9]+-[a-z0-9]+-[0-9a-f]{16}$/.test(p.sourceFingerprint))) delete p.sourceFingerprint;
   for (const k of ['duration', 'width', 'height', 'fps']) if (meta[k] != null && !num(meta[k], 0, 1e7)) meta[k] = Number(meta[k]) > 0 ? Number(meta[k]) : 0;
   // missing sections get their defaults (a hand-made or truncated file)
   if (!p.style || typeof p.style !== 'object') p.style = { ...STYLE_DEFAULTS };
