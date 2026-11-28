@@ -14,7 +14,8 @@ $('#btnAnalyze').addEventListener('click', async () => {
 $('#fileImport').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) importFile(f); });
 const VIDEO_RE = /\.(mkv|mp4|mov|webm|flv|avi|ts|m4v)$/i;
 function importFile(f) {
-  if (!VIDEO_RE.test(f.name)) return toast(tr('Only video files can be imported') + ' (.mkv, .mp4, .mov, .webm, .flv, .avi, .ts, .m4v)', 'err');
+  const asset = /\.(png|jpe?g|webp|mp3|wav|m4a|aac|ogg|flac|opus)$/i.test(f.name);   // pictures and music for the Tracks tab
+  if (!VIDEO_RE.test(f.name) && !asset) return toast(tr('Only video files can be imported') + ' (.mkv, .mp4, .mov, .webm, .flv, .avi, .ts, .m4v)', 'err');
   const t = toast(`Importing ${f.name}… 0%`, '', 0);
   const xhr = new XMLHttpRequest();
   xhr.open('PUT', `/api/upload?name=${enc(f.name)}`);
@@ -22,6 +23,7 @@ function importFile(f) {
   xhr.onload = async () => {
     t.remove();
     if (xhr.status !== 200) { let m = 'Import failed'; try { m = JSON.parse(xhr.responseText).error; } catch { /* ignore */ } return toast(m, 'err'); }
+    if (asset) { await loadAssets(); renderTracksTab(); return toast(`${tr('Added to the Tracks tab')}: ${f.name}`, 'ok'); }
     await loadVideos(); openVideo(f.name);
   };
   xhr.onerror = () => { t.remove(); toast('Import failed', 'err'); };

@@ -87,7 +87,16 @@ async function launch({ width = 1500, height = 950 } = {}) {
       try { await send('Browser.close', {}, 3000); } catch { /* already closed */ }
       try { ws.close(); } catch { /* closed */ }
       // the whole process tree: Chrome and Edge start helper processes
-      if (process.platform === 'win32') { try { require('child_process').execFileSync('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* gone */ } }
+      if (process.platform === 'win32') {
+        try { require('child_process').execFileSync('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* gone */ }
+        // Edge and Chrome helpers can outlive the process tree: stop every browser process using this
+        // test's own profile folder (passed in an environment variable, never pasted into the command)
+        try {
+          require('child_process').execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+            "Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'msedge.exe' -or $_.Name -eq 'chrome.exe') -and $_.CommandLine -and $_.CommandLine.Contains($env:S2S_PROFILE) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"],
+          { stdio: 'ignore', env: { ...process.env, S2S_PROFILE: profile } });
+        } catch { /* nothing left */ }
+      }
       else proc.kill('SIGKILL');
       await new Promise(r => setTimeout(r, 200));
       // the browser may still be writing its profile for a moment: removing it is best-effort

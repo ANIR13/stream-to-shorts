@@ -334,6 +334,16 @@ body.player-l .player-box { max-height: 64vh; }
 .p-semantic { background: var(--p-semantic) !important; }
 .p-emotion { background: var(--p-emotion) !important; }
 .p-context { background: var(--p-context) !important; }
+/* --- tracks tab --- */
+.track-list { display: grid; gap: 2px; margin: 6px 0 10px; }
+.track-row { display: grid; grid-template-columns: 1fr auto auto; gap: 14px; align-items: center; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+.track-name { font-weight: 600; font-size: 13px; }
+.ov-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
+.ov-row input[type=text] { flex: 1 1 180px; min-width: 120px; }
+.ov-row input[type=number] { width: 64px; }
+.cut-list { margin: 6px 0; padding-left: 18px; font-size: 12.5px; }
+.row.wrap { flex-wrap: wrap; }
+[data-tab="tracks"] h4 { margin: 14px 0 4px; }
 .why-reasons { margin: 6px 0 0; padding-left: 18px; font-size: 12.5px; display: grid; gap: 2px; }
 .why-reasons q { color: var(--muted); }
 .linkish { background: none; border: 0; padding: 0 2px; color: var(--accent); cursor: pointer; font-size: inherit; }

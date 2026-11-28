@@ -3,6 +3,7 @@
 
 function setClipTime(which, t, snap = false) {
   const c = selClip(); if (!c || t == null) return '';
+  if (timingLocked(c)) return '';
   let how = '';
   if (snap) { const sn = snapEdge(t, which); t = sn.t; how = sn.how || ''; }
   Object.assign(c, Timing.setEdge(c, which, t, S.p.meta.duration));

@@ -7,6 +7,7 @@ function switchTab(name) {
   $$('.tab').forEach(t => t.classList.toggle('hidden', t.dataset.tab !== name));
   if (name === 'layout') requestAnimationFrame(drawLayoutCanvas);
   if (name === 'exports') loadExports();
+  if (name === 'tracks') renderTracksTab();
 }
 $$('.tabs button').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
 // Arrow keys move between tabs (standard tab-list behaviour).

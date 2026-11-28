@@ -11,6 +11,7 @@ setPlayerSize(SIZES.includes(store.get('playerSize')) ? store.get('playerSize') 
   try { S.status = await api('/api/status'); } catch { toast('Cannot reach the local server. Is start.bat running?', 'err', 0); return; }
   await loadVideos();
   loadPresets();
+  loadAssets();
   pollJobs();
   checkInterrupted();
   const last = store.get('lastVideo');

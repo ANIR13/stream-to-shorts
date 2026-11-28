@@ -5,6 +5,9 @@ const { SMART_DEFAULTS } = require('./smart');
 const { httpError } = require('../shared/errors');
 const Timing = require('../../public/timing.js');
 const { isSafeFileName, isSafeId, VIDEO_EXT } = require('../shared/validate');
+const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+const AUDIO_EXT = new Set(['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac', '.opus']);
+const TRACK_IDS = ['title', 'captions', 'texts', 'images', 'stream', 'music', 'timing'];
 
 const STYLE_DEFAULTS = {
   titleFont: 'Impact', titleSize: 86, titleColor1: '#FFFFFF', titleColor2: '#FFD400',
@@ -92,6 +95,48 @@ const STYLE_NUMBERS = { titleSize: [10, 300], captionSize: [10, 300], fps: [10, 
 const FONT_KEYS = ['titleFont', 'captionFont'];
 const num = (v, lo, hi) => (typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi);
 
+// Timeline fields of a clip (core/timeline.js): times relative to the clip, files from the source folder.
+function sanitizeTimeline(c) {
+  const len = Math.max(0, c.end - c.start);
+  const t = v => (num(v, 0, 1e7) ? Math.round(v * 100) / 100 : null);
+  const span = (o, lo, hi) => { const a = t(o.start), b = t(o.end); return a != null && b != null && b > a && a >= lo && b <= hi ? [a, b] : null; };
+  if (c.cuts != null) {
+    c.cuts = Array.isArray(c.cuts) ? c.cuts.slice(0, 200).map(x => x && span(x, c.start, c.end)).filter(Boolean).map(([start, end]) => ({ start, end })) : [];
+    if (!c.cuts.length) delete c.cuts;
+  }
+  if (c.texts != null) {
+    c.texts = Array.isArray(c.texts) ? c.texts.slice(0, 50).map(o => {
+      const s = o && span(o, 0, len + 0.01);
+      if (!s || typeof o.text !== 'string' || !o.text.trim()) return null;
+      return { id: isSafeId(o.id) ? o.id : 't' + fnv(o.text + s[0]), text: o.text.replace(/[\r\n{}\\]+/g, ' ').slice(0, 120), start: s[0], end: s[1],
+        pos: ['top', 'middle', 'bottom'].includes(o.pos) ? o.pos : 'middle', size: num(o.size, 20, 200) ? o.size : 72,
+        color: /^#[0-9a-f]{6}$/i.test(o.color || '') ? o.color : '#FFFFFF' };
+    }).filter(Boolean) : [];
+    if (!c.texts.length) delete c.texts;
+  }
+  if (c.images != null) {
+    c.images = Array.isArray(c.images) ? c.images.slice(0, 20).map(o => {
+      const s = o && span(o, 0, len + 0.01);
+      if (!s || !isSafeFileName(o.file, IMAGE_EXT)) return null;
+      return { id: isSafeId(o.id) ? o.id : 'i' + fnv(o.file + s[0]), file: o.file, start: s[0], end: s[1],
+        pos: ['top-left', 'top', 'top-right', 'middle', 'bottom-left', 'bottom', 'bottom-right'].includes(o.pos) ? o.pos : 'top-right',
+        size: num(o.size, 0.05, 1) ? o.size : 0.3, opacity: num(o.opacity, 0, 1) ? o.opacity : 1 };
+    }).filter(Boolean) : [];
+    if (!c.images.length) delete c.images;
+  }
+  if (c.music != null) {
+    const m = c.music;
+    if (!m || typeof m !== 'object' || !isSafeFileName(m.file, AUDIO_EXT)) delete c.music;
+    else c.music = { file: m.file, volume: num(m.volume, 0, 2) ? m.volume : 0.25, from: num(m.from, 0, 1e6) ? m.from : 0,
+      fadeIn: num(m.fadeIn, 0, 10) ? m.fadeIn : 1, fadeOut: num(m.fadeOut, 0, 10) ? m.fadeOut : 1.5, duck: m.duck !== false, loop: m.loop !== false };
+  }
+  if (c.tracks != null) {
+    const tr = c.tracks && typeof c.tracks === 'object' ? c.tracks : {};
+    c.tracks = Object.fromEntries(TRACK_IDS.filter(k => tr[k] && typeof tr[k] === 'object').map(k => [k, { hidden: !!tr[k].hidden, locked: !!tr[k].locked }]));
+    if (!Object.keys(c.tracks).length) delete c.tracks;
+  }
+}
+
 function sanitizeProject(p) {
   if (!p || typeof p !== 'object') throw httpError(422, 'This project file is not valid.');
   if (!isSafeFileName(p.video, VIDEO_EXT)) throw httpError(422, 'This project file is not valid: its video name points outside the source folder.');
@@ -135,6 +180,7 @@ function sanitizeProject(p) {
         .map(r => ({ k: r.k, ...(typeof r.w === 'string' ? { w: r.w.replace(/[<>"&]/g, '').slice(0, 30) } : {}), ...(num(r.t, 0, 1e7) ? { t: r.t } : {}) })) : undefined;
     }
     if (c.scoreEngine != null && c.scoreEngine !== 'smart') delete c.scoreEngine;
+    sanitizeTimeline(c);
     if (typeof c.start !== 'number' || typeof c.end !== 'number' || !(c.start < c.end) || c.start < 0 || (meta.duration && c.end > meta.duration)) {
       const t = Timing.normalize(c, meta.duration);
       c.start = t.start; c.end = t.end;

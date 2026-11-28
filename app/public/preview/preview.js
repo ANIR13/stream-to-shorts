@@ -19,7 +19,7 @@ function drawPreview() {
   if (!S.p) return;
   const c = selClip(), E = c ? eff(c) : S.p, st = E.style;
   const up = t => st.uppercase ? String(t).toLocaleUpperCase() : String(t);
-  const hasTitle = !!(c && (c.title1 || c.title2));
+  const hasTitle = !!(c && (c.title1 || c.title2)) && !(c && isHidden(c, 'title'));
   const L = Layout.compute(E.layout, S.p.meta, st, hasTitle);
   const ready = player.readyState >= 2 && player.videoWidth;
   const sx = ready ? player.videoWidth / S.p.meta.width : 1;
@@ -57,7 +57,7 @@ function drawPreview() {
     }
   }
   // captions
-  if (st.captions && c && c.captionsOn !== false) {
+  if (st.captions && c && c.captionsOn !== false && !isHidden(c, 'captions')) {
     const t = player.currentTime;
     let words = null, hi = -1;
     if (Array.isArray(c.captions) && c.captions.length) {
@@ -90,6 +90,7 @@ function drawPreview() {
       ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     }
   }
+  if (c) drawOverlays(ctx, c, k, W);   // text overlays and pictures (Tracks tab)
   if (st.progressBar && c) {
     const f = clamp((player.currentTime - c.start) / (c.end - c.start), 0, 1);
     ctx.fillStyle = st.accent; ctx.fillRect(0, 1906 * k, W * f, 14 * k);

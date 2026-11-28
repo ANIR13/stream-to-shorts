@@ -110,6 +110,32 @@ test('the interface works end to end in a browser', { skip: !browser.available()
     assert.ok(await painted('preview') > 1000, 'preview drawn');
     assert.ok(await painted('timeline') > 1000, 'timeline drawn');
 
+    // Tracks tab: a cut marked at the playhead, a text overlay, a hidden title, a locked clip timing
+    await page.eval(`selectClip('loud2', false); switchTab('tracks')`);
+    await page.until(`!!document.querySelector('#tracksBody .track-list')`);
+    await page.eval(`player.currentTime = 105; document.querySelector('#btnCutMark').click()`);
+    await page.eval(`player.currentTime = 108; document.querySelector('#btnCutMark').click()`);
+    await page.until(`(S.p.clips.find(c => c.id === 'loud2').cuts || []).length === 1`);
+    assert.deepEqual(await page.eval(`S.p.clips.find(c => c.id === 'loud2').cuts`), [{ start: 105, end: 108 }]);
+    assert.match(await page.eval(`document.querySelector('#tracksBody').innerText`), /27\.0 s \/ 30\.0 s/, 'short length after the cut');
+    await page.eval(`player.currentTime = 110; document.querySelector('#btnTextAdd').click()`);
+    await page.until(`(S.p.clips.find(c => c.id === 'loud2').texts || []).length === 1`);
+    await page.eval(`(() => { const i = document.querySelector('#tracksBody [data-text] input[data-f=text]'); i.value = 'BOOM'; i.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    assert.equal(await page.eval(`S.p.clips.find(c => c.id === 'loud2').texts[0].text`), 'BOOM');
+    assert.equal(await page.eval(`S.p.clips.find(c => c.id === 'loud2').texts[0].start`), 10);
+    await page.eval(`(() => { const b = document.querySelector('[data-track=title] [data-hide]'); b.checked = false; b.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    assert.equal(await page.eval(`isHidden(S.p.clips.find(c => c.id === 'loud2'), 'title')`), true);
+    await page.eval(`(() => { const b = document.querySelector('[data-track=timing] [data-lock]'); b.checked = true; b.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await page.eval(`setClipTime('start', 90)`);
+    assert.equal(await page.eval(`S.p.clips.find(c => c.id === 'loud2').start`), 100, 'locked timing does not move');
+    await page.eval(`player.currentTime = 110.5; drawPreview()`);
+    await page.eval(`saveNow()`);
+    const saved = (await app.repo.load('demo_stream')).clips.find(c => c.id === 'loud2');
+    assert.deepEqual([saved.cuts, saved.texts[0].text, saved.tracks], [[{ start: 105, end: 108 }], 'BOOM', { title: { hidden: true, locked: false }, timing: { hidden: false, locked: true } }]);
+    await page.eval(`undo()`);
+    await page.until(`!S.p.clips.find(c => c.id === 'loud2').tracks || !S.p.clips.find(c => c.id === 'loud2').tracks.timing`);
+    await page.eval(`switchTab('edit')`);
+
     // keyboard help
     await page.eval(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '?', bubbles: true }))`);
     await page.until(`!document.querySelector('#help').classList.contains('hidden')`);

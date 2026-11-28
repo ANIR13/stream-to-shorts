@@ -70,6 +70,10 @@ const baseline = {
   uploadText: srv.uploadText({ publish: { hashtags: '#shorts #test' } }, clip),
   render,
 };
-fs.writeFileSync(path.join(__dirname, 'baseline.json'), JSON.stringify(baseline, null, 1));
-console.log('baseline written:', Object.keys(baseline).join(', '));
-process.exit(0);
+// Written only when run directly; tests require this file to reuse the same render cases.
+if (require.main === module) {
+  fs.writeFileSync(path.join(__dirname, 'baseline.json'), JSON.stringify(baseline, null, 1));
+  console.log('baseline written:', Object.keys(baseline).join(', '));
+  process.exit(0);
+}
+module.exports = { variants, clip, meta, baseline };
