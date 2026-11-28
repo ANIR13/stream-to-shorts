@@ -28,7 +28,7 @@ The server is split into layers; **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)*
 | `app/src/services/` | Detection, transcription, rendering, exports, presets, job queue. |
 | `app/src/infrastructure/` | FFmpeg adapter, running programs, tools and environment, trash. |
 | `app/src/repository/` | Projects on disk. |
-| `app/public/app.js` | The web interface logic. |
+| `app/public/` (`core/`, `editor/`, `preview/`, `ai/`, `tasks/`, `settings/`, `exports/`, `components/`, `app.js`) | The web interface, split by feature: see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#browser-interface). |
 | `app/public/layout.js` | 9:16 layout maths, shared by the live preview and the renderer: change both sides at once through this file. |
 | `app/public/timing.js` | Clip time rules and snap-to-speech, shared by the editor and the server. |
 | `app/public/i18n.js` | French translations of every interface text. |

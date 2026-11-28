@@ -20,5 +20,7 @@ function find(dir) {
 }
 const files = (asked.length ? asked : LEVELS).flatMap(l => find(path.join(TESTS, l))).sort();
 if (!files.length) { console.error('No test files found.'); process.exit(1); }
-const r = spawnSync(process.execPath, ['--test', ...files], { stdio: 'inherit' });
+// Interface tests talk to a headless browser over a WebSocket: built into Node 22+, behind a flag in 20/21.
+const flags = typeof WebSocket === 'undefined' && process.allowedNodeEnvironmentFlags.has('--experimental-websocket') ? ['--experimental-websocket', '--no-warnings'] : [];
+const r = spawnSync(process.execPath, [...flags, '--test', ...files], { stdio: 'inherit' });
 process.exit(r.status == null ? 1 : r.status);

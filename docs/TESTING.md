@@ -6,7 +6,7 @@ Stream → Shorts uses Node.js's built-in test runner (`node:test`), so testing 
 |---|---|---|---|
 | **Unit** | `tests/unit/` | Pure logic: clip times, speech snapping, highlight detection, 9:16 layout, caption timing, render graph, upload texts. | Node.js only |
 | **Integration** | `tests/integration/` | Pieces working together on temporary folders: project files and versions, restarts, the task queue, rendering and transcription services (with a fake ffmpeg / whisper), missing tools, interrupted renders. | Node.js only |
-| **End-to-end** | `tests/e2e/` | The whole workflow with the **real FFmpeg** on a generated recording: open → analyze → suggested clips → captions → render → check the finished file → restart → cancel a render. | FFmpeg (skipped if missing) |
+| **End-to-end** | `tests/e2e/` | The whole workflow with the **real FFmpeg** on a generated recording: open → analyze → suggested clips → captions → render → check the finished file → restart → cancel a render. **The interface in a headless browser** (`ui.test.js`): every feature file loads, clip list, editor, why panel, tabs, auto-detect, undo / redo, preview, timeline, help, French, saving; any script error fails. | FFmpeg; Chrome, Edge or Chromium and Node.js 20+ for the interface (skipped if missing) |
 | **Regression** | `tests/regression/` | One test per bug that was fixed, named after what the user saw, so it can't come back. | Node.js only |
 
 ## Running them

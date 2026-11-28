@@ -14,7 +14,7 @@ function createEnvironment(root, { lookup = onPath } = {}) {
     OUTPUT_DIR: path.join(root, 'output'),
     PROJECTS_DIR: path.join(root, 'projects'),
     TOOLS_DIR,
-    PUBLIC_DIR: path.join(root, 'app', 'public'),
+    PUBLIC_DIR: path.join(__dirname, '..', '..', 'public'), // the interface ships with the code, not with the user's folders
     MODELS_DIR: path.join(TOOLS_DIR, 'whisper', 'models'),
     FONTCONF: path.join(TOOLS_DIR, 'fonts.conf'),
   };
