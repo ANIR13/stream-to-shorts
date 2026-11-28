@@ -151,6 +151,7 @@ function sanitizeProject(p) {
   if (st && typeof st === 'object') {
     for (const k of FONT_KEYS) if (st[k] != null && (typeof st[k] !== 'string' || /[,\r\n{}\\]/.test(st[k]) || st[k].length > 64)) st[k] = STYLE_DEFAULTS[k];
     for (const [k, [lo, hi]] of Object.entries(STYLE_NUMBERS)) if (st[k] != null && !num(st[k], lo, hi)) st[k] = STYLE_DEFAULTS[k];
+    if (st.renderProfile != null && !['fast', 'balanced', 'quality', 'small'].includes(st.renderProfile)) delete st.renderProfile;
   }
   // whisper settings become program arguments and a model path
   const w = p.whisper;

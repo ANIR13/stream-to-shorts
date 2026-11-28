@@ -238,6 +238,8 @@
               <label>Quality <output data-out="crf"></output> <span class="muted small">(lower = better, bigger file)</span><input type="range" min="16" max="28" data-style="crf"></label>
               <label>Encoder<select data-style="encoder"><option value="cpu">Best quality (processor)</option><option value="gpu">Faster (graphics card)</option></select></label>
               <p id="gpuNote" class="muted small"></p>
+              <label>Render profile<select data-style="renderProfile"><option value="fast">Fast (quicker, slightly lower quality)</option><option value="balanced">Balanced</option><option value="quality">High quality (slower)</option><option value="small">Small file (lower bitrate)</option></select></label>
+              <p id="systemNote" class="muted small"></p>
             </fieldset>
           </div>
         </div>

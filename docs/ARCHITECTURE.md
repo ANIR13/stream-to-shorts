@@ -33,8 +33,8 @@ flowchart TD
 |---|---|---|
 | `app/server.js` | Entry point and HTTP | Builds the application (`createApp`), maps each API route to a service, serves static and media files. |
 | `app/src/shared/` | Shared | `errors.js` (HTTP errors, plain-language task errors), `fsutil.js` (JSON files, paths), `validate.js` (safe file names and ids: everything from the browser or a project file passes here), `stats.js` (moving average, robust z-score). |
-| `app/src/infrastructure/` | Infrastructure | `process.js` (running programs, opening folders), `environment.js` (folders, tools, environment), `ffmpeg.js` (**FFmpeg adapter**: the only place that knows how ffmpeg/ffprobe are called), `trash.js` (Recycle Bin / desktop trash). |
-| `app/src/core/` | Core logic, no I/O | `project.js` (defaults, clip numbers, merging browser saves), `schema.js` (project file versions and migrations), `detection.js` (fast highlight scoring), `smart.js` (smart multi-signal scoring, see [DETECTION.md](DETECTION.md)), `captions.js` (word fixes, hint-word echo, whisper parsing, caption lines), `timeline.js` (**timeline engine**: a short as tracks, compiled to ffmpeg inputs, see below), `render.js` (subtitle file and filter graph), `upload.js` (upload texts). |
+| `app/src/infrastructure/` | Infrastructure | `process.js` (running programs, opening folders), `environment.js` (folders, tools, environment), `ffmpeg.js` (**FFmpeg adapter**: the only place that knows how ffmpeg/ffprobe are called), `trash.js` (Recycle Bin / desktop trash), `monitor.js` (memory of a running tool: /proc, tasklist or ps). |
+| `app/src/core/` | Core logic, no I/O | `project.js` (defaults, clip numbers, merging browser saves), `schema.js` (project file versions and migrations), `detection.js` (fast highlight scoring), `smart.js` (smart multi-signal scoring, see [DETECTION.md](DETECTION.md)), `captions.js` (word fixes, hint-word echo, whisper parsing, caption lines), `timeline.js` (**timeline engine**: a short as tracks, compiled to ffmpeg inputs, see below), `render.js` (subtitle file and filter graph), `upload.js` (upload texts), `profiles.js` (render profiles: fast, balanced, high quality, small file), `resources.js` (memory and time estimates). |
 | `app/src/repository/` | Persistence | `projectRepository.js`: projects on disk, per-project locks, revisions. |
 | `app/src/services/` | Application services | `detectionService.js` (analysis, preview copy, suggested clips), `transcriptionService.js` (whisper.cpp, captions), `renderingService.js` (shorts and quick drafts), `exportService.js` (output files, upload texts), `presetService.js`, `jobQueue.js` (one task at a time, cancel, retry, resume after restart). |
 | `app/public/` | Browser | The interface, split by feature (see [Browser interface](#browser-interface)); `layout.js` (9:16 layout maths shared with the renderer), `timing.js` (clip time rules and snap-to-speech, shared with the server), `i18n.js` (French), `index.html`, `styles.css`. |
@@ -48,6 +48,20 @@ flowchart TD
 - **The HTTP layer** only parses requests, calls services and formats responses. API paths, inputs, outputs and status codes are part of the contract with the browser: keep them compatible.
 - **All project writes** go through `repo.update(slug, mutate)`, which serializes writes per project.
 - **Untrusted input:** requests are checked in `server.js` (own page only, see SECURITY.md), file names in `shared/validate.js`, and every project passes through `sanitizeProject` (`core/project.js`) when loaded and saved, so services can trust its values.
+
+## Render pipeline
+
+A render (`services/renderingService.js`) goes through these steps:
+
+1. **Timeline** (`core/timeline.js`) compiled to the subtitle file, filter graph and inputs.
+2. **Profile** (`core/profiles.js`): encoder settings for the chosen quality versus speed; the graphics-card encoder found at start-up (Intel Quick Sync, NVIDIA NVENC, AMD AMF, Apple VideoToolbox) when chosen, the processor otherwise.
+3. **Estimate** (`core/resources.js`): memory and time; a warning in the task when free memory is short.
+4. **Encode**, with memory sampled every 2 s (`infrastructure/monitor.js`) and ffmpeg's speed read from its progress output (Tasks shows both). A graphics-card failure falls back to the processor; running out of memory retries once with fewer threads.
+5. **Validate** the new file (size 1080x1920 or 540x960 for drafts, length, sound) **before** it replaces the previous short.
+6. On failure, a **log file** in `projects/<video>/logs/` (command, error, estimate, measurements; the last 20 are kept) and the previous short untouched.
+7. **Metadata:** the title and description are written inside the MP4. When upload texts change, they are rewritten with a stream copy, never a new encode.
+
+The profile, like the CPU / graphics-card choice, is not part of the render fingerprint: changing it doesn't mark shorts outdated.
 
 ## Timeline engine
 

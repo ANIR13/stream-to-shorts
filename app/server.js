@@ -180,7 +180,8 @@ function createApp({ root = path.resolve(__dirname, '..'), log = console, limits
     switch (route) {
       case 'GET /api/status': {
         const models = (await exists(paths.MODELS_DIR)) ? (await fsp.readdir(paths.MODELS_DIR)).filter(n => n.endsWith('.bin')) : [];
-        return sendJSON(res, 200, { startedAt: STARTED_AT, gpu: ffmpeg.hardwareName, ffmpeg: tools.FFMPEG !== 'ffmpeg' || null, whisper: transcription.available, models, threads: env.THREADS, sourceDir: paths.SOURCE_DIR, outputDir: paths.OUTPUT_DIR });
+        const GBy = 1073741824, sys = { cores: require('os').cpus().length, memoryGB: Math.round(require('os').totalmem() / GBy * 10) / 10, freeMemoryGB: Math.round(require('os').freemem() / GBy * 10) / 10 };
+        return sendJSON(res, 200, { startedAt: STARTED_AT, system: sys, gpu: ffmpeg.hardwareName, ffmpeg: tools.FFMPEG !== 'ffmpeg' || null, whisper: transcription.available, models, threads: env.THREADS, sourceDir: paths.SOURCE_DIR, outputDir: paths.OUTPUT_DIR });
       }
       case 'GET /api/videos': return sendJSON(res, 200, await listVideos());
       case 'GET /api/assets': {

@@ -25,9 +25,11 @@ function setup() {
   const repo = createProjectRepository({ projectsDir: dirs.projectsDir, sourceDir: dirs.sourceDir, probe: async () => ({ duration: 1800, width: 1920, height: 1080, fps: 30, hasAudio: true, size: 1 }) });
   // fake ffmpeg: records calls and creates the output file (last argument) like the real one would
   const calls = [];
+  let lastDur = 0;
   const ffmpeg = {
     filterArg: '-/filter_complex',
-    run: async (job, args, opts) => { calls.push({ args, opts }); const out = args[args.length - 1]; if (/\.mp4$/.test(out)) fs.writeFileSync(path.isAbsolute(out) ? out : path.join(opts.cwd, out), 'video'); },
+    probe: async file => ({ width: /drafts/.test(file) ? 540 : 1080, height: /drafts/.test(file) ? 960 : 1920, duration: lastDur, hasAudio: true }),
+    run: async (job, args, opts) => { calls.push({ args, opts }); lastDur = Number(args[args.lastIndexOf('-t') + 1]); const out = args[args.length - 1]; if (/\.mp4$/.test(out)) fs.writeFileSync(path.isAbsolute(out) ? out : path.join(opts.cwd, out), 'video'); },
     detectHardware: async () => {}, gpuArgs: () => null,
   };
   return { root, ...dirs, repo, ffmpeg, calls };

@@ -32,7 +32,13 @@ function createExportService({ repo, outputDir, trash, rendering }) {
     const p = await repo.load(slug);
     const dir = dirOf(slug);
     let n = 0;
-    for (const c of p.clips) if (c.output && await exists(path.join(dir, c.output))) { await rendering.writeUploadText(p, c, dir); n++; }
+    for (const c of p.clips) {
+      if (!c.output || !(await exists(path.join(dir, c.output)))) continue;
+      await rendering.writeUploadText(p, c, dir);
+      // the title and description inside the MP4 too: a stream copy, never a new encode
+      if (rendering.updateMetadata) await rendering.updateMetadata(p, c, dir).catch(() => {});
+      n++;
+    }
     return n;
   }
 

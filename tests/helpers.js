@@ -22,11 +22,16 @@ function tmpApp(prefix = 's2s-') {
 // fail(args) may return an Error to simulate a crash after part of the file was written.
 function fakeFfmpeg({ fail } = {}) {
   const calls = [];
+  let last = { duration: 0 };
   return {
     calls,
+    // what ffprobe would say about the last rendered file: the size of a short or draft, its length
+    probe: async file => ({ width: /drafts/.test(file) ? 540 : 1080, height: /drafts/.test(file) ? 960 : 1920, duration: last.duration, hasAudio: true, fps: 30, size: 1 }),
     filterArg: '-/filter_complex',
     run: async (job, args, opts) => {
       calls.push({ args, opts });
+      const ti = args.lastIndexOf('-t');
+      if (ti >= 0) last = { duration: Number(args[ti + 1]) };
       const out = args[args.length - 1];
       const file = path.isAbsolute(out) ? out : path.join(opts.cwd, out);
       if (/\.mp4$/.test(out)) fs.writeFileSync(file, fail ? 'half a vid' : 'video');
