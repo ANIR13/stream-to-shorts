@@ -20,6 +20,8 @@
           <hr>
           <button role="menuitem" data-vm="proxy"><b id="vmProxyTitle">Sharper preview (720p)</b><span class="muted" id="vmProxyNote"></span></button>
           <hr>
+          <button role="menuitem" data-vm="storage"><b>Free disk space…</b><span class="muted" id="vmStorageNote">thumbnails, quick drafts and working files of this video</span></button>
+          <hr>
           <button role="menuitem" data-vm="reset"><b>Start this video over…</b><span class="muted">its clips and edits go to the Recycle Bin; finished shorts are kept</span></button>
         </div>
       </div>
@@ -322,6 +324,7 @@
       <button id="btnRetryCancelled" class="btn small primary hidden"></button>
       <button id="btnRetryFailed" class="btn small ghost hidden"></button>
       <span class="spacer"></span>
+      <label class="small" title="Independent tasks (different clips or videos) can run side by side on a powerful computer. Speech recognition always runs alone.">At once <select id="maxParallel"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label>
       <button id="btnCancelAll" class="btn small danger hidden">Cancel all</button>
     </div>
     <div id="jobList" class="job-list"></div>

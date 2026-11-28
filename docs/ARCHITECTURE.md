@@ -36,7 +36,7 @@ flowchart TD
 | `app/src/infrastructure/` | Infrastructure | `process.js` (running programs, opening folders), `environment.js` (folders, tools, environment), `ffmpeg.js` (**FFmpeg adapter**: the only place that knows how ffmpeg/ffprobe are called), `trash.js` (Recycle Bin / desktop trash), `monitor.js` (memory of a running tool: /proc, tasklist or ps). |
 | `app/src/core/` | Core logic, no I/O | `project.js` (defaults, clip numbers, merging browser saves), `schema.js` (project file versions and migrations), `detection.js` (fast highlight scoring), `smart.js` (smart multi-signal scoring, see [DETECTION.md](DETECTION.md)), `captions.js` (word fixes, hint-word echo, whisper parsing, caption lines), `timeline.js` (**timeline engine**: a short as tracks, compiled to ffmpeg inputs, see below), `render.js` (subtitle file and filter graph), `upload.js` (upload texts), `profiles.js` (render profiles: fast, balanced, high quality, small file), `resources.js` (memory and time estimates). |
 | `app/src/repository/` | Persistence | `projectRepository.js`: projects on disk, per-project locks, revisions. |
-| `app/src/services/` | Application services | `detectionService.js` (analysis, preview copy, suggested clips), `transcriptionService.js` (whisper.cpp, captions), `renderingService.js` (shorts and quick drafts), `exportService.js` (output files, upload texts), `presetService.js`, `jobQueue.js` (one task at a time, cancel, retry, resume after restart). |
+| `app/src/services/` | Application services | `detectionService.js` (analysis, preview copy, suggested clips), `transcriptionService.js` (whisper.cpp, captions), `renderingService.js` (shorts and quick drafts), `exportService.js` (output files, upload texts), `presetService.js`, `storageService.js` (disk space, clean-up), `jobQueue.js` (tasks in order or in parallel without conflicts, cancel, retry, resume after restart). |
 | `app/public/` | Browser | The interface, split by feature (see [Browser interface](#browser-interface)); `layout.js` (9:16 layout maths shared with the renderer), `timing.js` (clip time rules and snap-to-speech, shared with the server), `i18n.js` (French), `index.html`, `styles.css`. |
 | `tests/` | Tests | `unit/`, `integration/`, `e2e/`, `regression/`: see [TESTING.md](TESTING.md). |
 
@@ -48,6 +48,17 @@ flowchart TD
 - **The HTTP layer** only parses requests, calls services and formats responses. API paths, inputs, outputs and status codes are part of the contract with the browser: keep them compatible.
 - **All project writes** go through `repo.update(slug, mutate)`, which serializes writes per project.
 - **Untrusted input:** requests are checked in `server.js` (own page only, see SECURITY.md), file names in `shared/validate.js`, and every project passes through `sanitizeProject` (`core/project.js`) when loaded and saved, so services can trust its values.
+
+## Large recordings
+
+A 4-hour stream is a different problem from a 10-minute clip. What keeps it workable:
+
+- **Analysis in parts** (`services/detectionService.js`): parts of 15 minutes, each one ffmpeg pass over its piece of the file (loudness, on-screen action and its piece of the preview copy). Several parts run at once (about one per four cores, three at most). A finished part is saved in `projects/<video>/analysis-parts/`, so an interrupted analysis continues where it stopped; the preview pieces are joined without re-encoding at the end.
+- **Source fingerprints** (`infrastructure/fingerprint.js`): size, date and a hash of 64 KB at the start, middle and end (instant on any size). Stored with the analysis, the project and the transcripts; when the file under the same name is replaced, the interface says so, detection refuses the old analysis and transcripts are made again. A file only touched or copied back keeps its fingerprint.
+- **Tasks in parallel** (`services/jobQueue.js`): up to N work units at once (Tasks → *At once*; the default depends on cores and memory). Tasks that touch the same clip, analysis, preview copy, transcript or waveform never run together; speech recognition runs alone (it uses every core); analysis counts double. Project files stay protected by the per-project write lock.
+- **Thumbnails** come from the small preview copy when it is big enough.
+- **Lazy data:** the whole-stream transcript loads in the background after a video opens, or when a feature needs it; the detailed waveform (0.1 s steps, built in the background after the analysis) only when the timeline shows less than 10 minutes.
+- **Clean-up** (`services/storageService.js`): at start-up, leftovers of interrupted work (older than an hour), quick drafts older than 14 days and thumbnails older than 30 days; per video, *Free disk space* shows what its working files use and removes them (all are made again when needed).
 
 ## Render pipeline
 
@@ -118,6 +129,7 @@ Each `projects/<video>/project.json` has a `version` field: the **project file f
 |---|---|
 | 1 | First releases (projects without a `version` field count as 1). |
 | 2 | Settings added since then are written into the file: word fixes and hint words, upload hashtags, setup checklist, detection weights and spacing; clips get permanent numbers. |
+| 5 | `sourceFingerprint`: the recording's fingerprint at the last analysis (stale caches are detected when the file under the same name is replaced). |
 | 4 | The timeline: clips may have `cuts`, `texts`, `images`, `music` and `tracks` (hidden / locked). All optional; nothing to fill in. |
 | 3 | Detection settings get the engine (`fast` or `smart`, fast by default) and the smart weights `wA wV wS wE wC`. Smart clips store `scoreEngine` and `scoreReasons`. |
 

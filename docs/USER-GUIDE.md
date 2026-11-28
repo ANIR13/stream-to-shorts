@@ -118,6 +118,14 @@ The **⋯** button next to the video list opens this video's project or output f
 - Whisper models live in `tools/whisper/models/` (`setup.bat` / `setup.sh` download `ggml-small.bin`). For better accuracy, add `ggml-medium.bin` or `ggml-large-v3.bin` from https://huggingface.co/ggerganov/whisper.cpp. Bigger models are slower.
 - For Arabic captions, pick **Arial** or **Tahoma** as the caption font, because Impact has no Arabic letters.
 
+## Long streams and big computers
+
+- **Analysis of long streams** runs in 15-minute parts, several at a time on a computer with many cores. If the app is closed during an analysis, analyze again: the parts already done are kept.
+- **Tasks at once:** in **Tasks**, *At once* lets independent tasks (different clips or videos) run side by side on a powerful computer. The suggested value depends on its cores and memory. Speech recognition always runs alone, and two tasks never work on the same clip at the same time.
+- **Replaced a recording?** If you replace a video file by another one with the same name, the app notices and asks you to analyze it again.
+- **Disk space:** *⋯ → Free disk space…* shows what a video's working files use (preview copy, thumbnails, drafts) and removes them. They are made again when needed; your clips, edits, captions and finished shorts are never touched. Old drafts and thumbnails are also cleaned automatically.
+- **Detailed waveform:** zoom into the timeline (less than 10 minutes on screen) to see the sound in 0.1 s steps.
+
 ## Render quality and speed
 
 In the **Style** tab, **Render profile** chooses between speed and quality for every short of the video:

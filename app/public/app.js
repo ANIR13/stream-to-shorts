@@ -12,6 +12,7 @@ setPlayerSize(SIZES.includes(store.get('playerSize')) ? store.get('playerSize') 
   await loadVideos();
   loadPresets();
   loadAssets();
+  loadSettings();
   pollJobs();
   checkInterrupted();
   const last = store.get('lastVideo');

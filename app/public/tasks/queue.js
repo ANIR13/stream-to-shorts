@@ -2,6 +2,18 @@
 // Polling the task queue, batches and time left.
 
 let pollTimer = null;
+// How many tasks may run at once (saved on the server, for every video).
+async function loadSettings() {
+  try {
+    const st = await api('/api/settings');
+    $('#maxParallel').value = String(Math.min(4, st.maxParallel));
+    $('#maxParallel').title = `${tr('This computer')}: ${st.cores} ${tr('cores')}, ${st.memoryGB} GB. ${tr('Suggested')}: ${st.autoParallel}.`;
+  } catch { /* old server */ }
+}
+$('#maxParallel').addEventListener('change', async e => {
+  try { await api('/api/settings', { method: 'POST', body: { maxParallel: Number(e.target.value) } }); toast(tr('Saved'), 'ok', 1500); pollSoon(); }
+  catch (err) { toast(err.message, 'err'); }
+});
 function pollSoon() { clearTimeout(pollTimer); pollTimer = setTimeout(pollJobs, 150); }
 async function pollJobs() {
   let list = [];

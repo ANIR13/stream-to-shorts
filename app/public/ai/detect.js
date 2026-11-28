@@ -4,7 +4,8 @@
 // auto-detect popover (defaults match the server's DETECT_DEFAULTS)
 const DETECT_DEFAULTS = { count: 12, length: 55, wAudio: 1, wPeak: 0.5, wVisual: 0.3, gap: 3, engine: 'fast', wA: 0.2, wV: 0.15, wS: 0.35, wE: 0.2, wC: 0.1 };
 const FAST_W = ['wAudio', 'wPeak', 'wVisual'], SMART_W = ['wA', 'wV', 'wS', 'wE', 'wC'];
-$('#btnDetect').addEventListener('click', () => {
+$('#btnDetect').addEventListener('click', async () => {
+  if (S.p && !$('#detectPop')) await ensureTranscript();
   if (!S.p.analyzed) return toast('Analyze the video first. Auto-detect uses the loudness and action scan.', 'err');
   let pop = $('#detectPop');
   if (pop) return pop.remove();

@@ -158,6 +158,7 @@ $('#tracksBody').addEventListener('click', async e => {
   }
   if (b.id === 'btnCutPauses') {
     if (timingLocked(c)) return;
+    await ensureTranscript();
     const words = [];
     for (const ch of c.captions || []) for (const w of ch.words || []) words.push(w);
     if (!words.length && S.transcript) for (const w of S.transcript.words) if (w.e > c.start && w.s < c.end) words.push(w);

@@ -29,6 +29,23 @@ vmenu.addEventListener('click', async e => {
     catch (err) { toast(err.message, 'err'); }
     return;
   }
+  if (b.dataset.vm === 'storage') {
+    let u;
+    try { u = await api(`/api/storage?slug=${enc(slug())}`); } catch (err) { return toast(err.message, 'err'); }
+    const mb = n => (n / 1048576).toFixed(n > 1048576 * 10 ? 0 : 1) + ' MB';
+    const kinds = ['drafts', 'thumbs', 'renderFiles', 'logs'];
+    const can = kinds.reduce((n, k) => n + u[k], 0);
+    const lines = [`${tr('Quick drafts')}: ${mb(u.drafts)}`, `${tr('Thumbnails')}: ${mb(u.thumbs)}`, `${tr('Render working files')}: ${mb(u.renderFiles)}`, `${tr('Logs')}: ${mb(u.logs)}`, `${tr('Preview copy')}: ${mb(u.preview)}`];
+    if (!confirm(`${tr('Working files of this video')} (${mb(u.total)}):\n\n${lines.join('\n')}\n\n${tr('Remove the drafts, thumbnails, render working files and logs')} (${mb(can)})? ${tr('They are made again when needed. Clips, edits, captions and finished shorts are kept.')}`)) return;
+    let kinds2 = kinds;
+    if (u.preview && confirm(`${tr('Also remove the preview copy')} (${mb(u.preview)})? ${tr('The player then uses the original file (slower) until you analyze again.')}`)) kinds2 = kinds.concat('preview');
+    try {
+      const r = await api('/api/storage/clean', { method: 'POST', body: { slug: slug(), kinds: kinds2 } });
+      toast(`${tr('Freed')} ${mb(r.freed)}`, 'ok');
+      if (kinds2.includes('preview')) { S.p.hasProxy = false; setPlayerSource(true); }
+    } catch (err) { toast(err.message, 'err'); }
+    return;
+  }
   if (b.dataset.vm === 'project' || b.dataset.vm === 'output') { api('/api/open', { method: 'POST', body: { what: b.dataset.vm, slug: slug() } }).catch(err => toast(err.message, 'err')); return; }
   const file = S.p.video, sl = S.p.slug;
   if (!confirm(`Start "${file}" over?\nIts clips, titles, captions, word fixes and analysis go to the Recycle Bin. Finished shorts in the output folder are kept.`)) return;
